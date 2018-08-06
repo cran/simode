@@ -2,7 +2,7 @@ Package: simode
 Type: Package
 Title: Statistical Inference for Systems of Ordinary Differential
         Equations using Separable Integral-Matching
-Version: 1.0.1
+Version: 1.0.2
 Authors@R: c(
     person("Itai", "Dattner", email = "idattner@stat.haifa.ac.il", role = c("aut", "cre")),
     person("Rami", "Yaari", email = "ramiyaari@gmail.com", role = "aut"))
@@ -21,9 +21,9 @@ LazyData: true
 RoxygenNote: 6.0.1
 VignetteBuilder: R.rsp
 NeedsCompilation: no
-Packaged: 2018-07-31 12:10:40 UTC; ramiy
+Packaged: 2018-08-04 22:10:31 UTC; ramiy
 Author: Itai Dattner [aut, cre],
   Rami Yaari [aut]
 Maintainer: Itai Dattner <idattner@stat.haifa.ac.il>
 Repository: CRAN
-Date/Publication: 2018-08-02 12:00:03 UTC
+Date/Publication: 2018-08-06 13:00:03 UTC
