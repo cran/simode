@@ -48,9 +48,7 @@ simode_fit <- simode(
   equations=equations, pars=pars, fixed=x0,
   time=time, obs=c(obs,xvars),
   nlin_pars=nlin_pars, start=nlin_init,
-  simode_ctrl = simode.control(
-    im_optim_method='Nelder-Mead',
-    nls_optim_method='Nelder-Mead'))
+  simode_ctrl = simode.control(nls_optim_method='Nelder-Mead'))
 
 simode_fit
 plot(simode_fit, type='fit', pars_true=theta, legend=T, mfrow=c(2,1))
