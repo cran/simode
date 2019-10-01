@@ -1,8 +1,8 @@
-9cafc48d07ddd2ffafd9a752212fc298 *DESCRIPTION
+87777e7e6c794e65e04b0541869fc9b5 *DESCRIPTION
 2899ce9efb75c8b3919848094ea2b65d *NAMESPACE
 7c9e64ecd7bea093c591636b9f578b17 *R/calc_loss.R
 d4a23e23ca2a7d96a59bb64545669561 *R/simode.R
-7d92fb8e49e90825be2acaf5cf2b89a4 *R/simode_fit.R
+3fabefcec989430876f0126774582969 *R/simode_fit.R
 91cc7a31a34be7c227dd5c7a2840d0b9 *R/simode_multi.R
 d49a24cfacc8508c904dbb450c5aa206 *R/simode_profile.R
 506923b277e4579bcbedb4369cf2c672 *R/utils.R
@@ -19,7 +19,7 @@ e4d517dbdc009452af7ff20b98aa73f8 *demo/LVMCEx.R
 9c003c9c8f5ca97e18d54d6d88d017dd *inst/R_package_simode.Rnw
 443cd2892af4d350c4af691548d3d579 *inst/doc/R_package_simode.pdf
 f0118847dc781b59d804a3e28d4b89a9 *inst/doc/R_package_simode.pdf.asis
-f544bff7c45bf7f0f1dc8d51650d3b97 *inst/simode-manual.pdf
+73ae67240b9cc6cd18fe044998f0a59a *inst/simode-manual.pdf
 03bdfc3067a6248c439e8a6d4750556f *man/confint.profile.simode.Rd
 4476148f5c069ea4509da0670abf9475 *man/plot.confint.simode.Rd
 5ebbe5dd9eb0ca1e393494c5d4c7d0c5 *man/plot.list.simode.Rd
