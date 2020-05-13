@@ -5,11 +5,26 @@
 \title{Statistical inference of ordinary differential equations using
 separable integral-matching}
 \usage{
-simode(equations, pars, time, obs, obs_sets = 1, nlin_pars = NULL,
-  likelihood_pars = NULL, fixed = NULL, start = NULL, lower = NULL,
-  upper = NULL, im_method = c("separable", "non-separable"),
-  decouple_equations = F, gen_obs = NULL, calc_nll = NULL,
-  scale_pars = NULL, simode_ctrl = simode.control(), ...)
+simode(
+  equations,
+  pars,
+  time,
+  obs,
+  obs_sets = 1,
+  nlin_pars = NULL,
+  likelihood_pars = NULL,
+  fixed = NULL,
+  start = NULL,
+  lower = NULL,
+  upper = NULL,
+  im_method = c("separable", "non-separable"),
+  decouple_equations = FALSE,
+  gen_obs = NULL,
+  calc_nll = NULL,
+  scale_pars = NULL,
+  simode_ctrl = simode.control(),
+  ...
+)
 }
 \arguments{
 \item{equations}{Named vector. The equations describing the ODE system.
@@ -57,7 +72,7 @@ initial conditions. Parameters in this list will not be estimated.}
 
 \item{start}{Named vector. Starting values for optimization of parameters/initial conditions.
 Must contain starting values for all the parameters in \code{nlin_pars}
-and \code{likelihood_pars}. If im_method="non-seperable", can optionally contain
+and \code{likelihood_pars}. If im_method="non-separable", can optionally contain
 starting values for any other parameter/initial condition.}
 
 \item{lower}{Named vector. Lower bounds for any parameter/initial condition.}
@@ -194,7 +209,7 @@ profiles_fit2 <- profile(simode_fit2,step_size=0.01,max_steps=50)
 plot(profiles_fit2,mfrow=c(2,3))
 ci_fit2 <- confint(profiles_fit2)
 ci_fit2
-plot(ci_fit2,pars_true=c(theta,x0),legend=T)
+plot(ci_fit2,pars_true=c(theta,x0),legend=TRUE)
 }
 
 }

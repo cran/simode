@@ -145,19 +145,95 @@ R> for(i in 1:length(vars)) {
 R> names(obs) <- vars
 ```
 
-Now that we have setup the system of ODEs in a symbolic form and generated observations from the statistical model, we can use the ``simode`` package to estimate model parameters. We define the linear parameters $\theta_L=(\alpha_1,\beta_1,\alpha_2,\beta_2)^\top$ and the nonlinear parameters $\theta_{NL}=(g_{12},h_{11},g_{21},h_{22})$. For the nonlinear parameters we need to provide initial guess values for optimization. In this example, we generate random initial guess values in the vicinity of the true nonlinear parameters. 
-The call to 'simode' returns an object of class ``simode``, containing the parameters estimates obtained using integral-matching (im_est) as well as those obtained using nonlinear least-squares optimization starting from the integral-matching estimates (nls_est). 
+Now that we have setup the system of ODEs in a symbolic form and generated observations from the statistical model, we can use the ``simode`` package to estimate model parameters, plot model fits, and provide confidence intervals. For simplicity we begin by assuming that the initial conditions and the kinetic parameters are all known, so that our goal is to estimate the vector $\theta_L=(\alpha_1,\beta_1,\alpha_2,\beta_2)^\top$. The code for doing so is:
 
 ```
 R> lin_pars <- c('alpha1','beta1','alpha2','beta2')
 R> nlin_pars <- setdiff(pars,lin_pars)
+R> est_lin <- simode(equations=equations, pars=lin_pars, 
++                    fixed=c(x0,theta[nlin_pars]), time=time, obs=obs)
+R> summary(est_lin)
+
+call:
+simode(equations = equations, pars = lin_pars, time = time, obs = obs, 
+    fixed = c(x0, theta[nlin_pars]))
+
+equations:
+                            x1                             x2 
+"alpha1*(x2^1)-beta1*(x1^0.5)" "alpha2*(x1^0.1)-beta2*(x2^1)" 
+
+initial conditions:
+ x1  x2 
+2.0 0.1 
+
+parameter estimates:
+     par   type im_est nls_est
+1 alpha1 linear  1.932   2.013
+2  beta1 linear  2.324   2.432
+3 alpha2 linear  3.868   3.943
+4  beta2 linear  1.923   1.959
+
+im-method:  separable 
+
+im-loss:  0.1492 
+
+nls-loss:  0.2398 
+```
+The call to 'simode' returns an object of class ``simode``, containing the parameters estimates obtained using integral-matching (im_est) as well as those obtained using nonlinear least-squares  optimization starting from the integral-matching estimates (nls_est). An implementation of the generic plot function for ``simode`` objects can be used to plot the fits obtained using these estimates (Figure 1). In this case, it is also possible to plot the fit against the true curves, since the true values of the parameters that were used to generate the observations are known. 
+
+```
+R> plot(est_lin, type='fit', pars_true=theta[lin_pars], 
++       mfrow=c(1,2), legend=TRUE)
+```
+
+![True and estimated solutions $x_1$ and $x_2$ of the biochemical system of equation (9)](figure1.png)
+
+
+The same plot function can also be used to show the obtained estimates (Figure 2):
+```
+R> plot(est_lin, type='est', show='both', 
++       pars_true=theta[lin_pars], legend=TRUE)
+```
+
+![Integral-matching estimates (stage 1) and least-squares estimates (stage 2) for the linear parameters of system (9)](figure2.png){ width=65% }
+
+Now we can generate confidence intervals for the parameters using profile likelihood. In case nonlinear optimization for the point estimates was used, then the profiling is done using a Gaussian based likelihood with fixed sigma which we estimate in the background.
+
+```
+R> step_size <- 0.01*est_lin$nls_pars_est
+R> profile_lin <- profile(est_lin,step_size=step_size,max_steps=50)
+R> confint(profile_lin,level=0.95)
+
+call:
+confint.profile.simode(object = profile_lin, level = 0.95)
+level:
+0.95 
+intervals:
+     par  nls_est    lower    upper
+1 alpha1 2.013303 1.901046 2.130440
+2  beta1 2.432117 2.290981 2.581607
+3 alpha2 3.942877 3.825985 4.065744
+4  beta2 1.959493 1.899323 2.021247
+```
+
+We can also plot the obtained likelihood profiles (Figure 3):
+
+```
+R> plot(profile_lin, mfrow=c(2,2))
+```
+
+![Profile likelihood confidence intervals for the linear parameters of system (9)](figure3.png){ width=60% }
+
+Now let us assume the nonlinear parameters $\theta_{NL}=(g_{12},h_{11},g_{21},h_{22})$ are not known. Estimating nonlinear parameters requires nonlinear optimization. The function 'simode' uses the 'optim' function for that, thus we need to provide initial guess values for optimization. In this example, we generate random initial guess values in the vicinity of the true nonlinear parameters. The code and estimation results are given below.
+
+```
 R> nlin_init <- rnorm(length(theta[nlin_pars]),theta[nlin_pars],
 +                      0.1*theta[nlin_pars])
 R> names(nlin_init) <- nlin_pars
-R> est <- simode(
+R> est_semilin <- simode(
 +    equations=equations, pars=pars, fixed=x0, time=time, obs=obs,
 +    nlin_pars=nlin_pars, start=nlin_init)
-R> summary(est)
+R> summary(est_semilin)
 
 call:
 simode(equations = equations, pars = pars, time = time, obs = obs, 
@@ -188,16 +264,6 @@ im-loss:  0.1142
 
 nls-loss:  0.239 
 ```
-
-An implementation of the generic plot function for ``simode`` objects can be used to plot the fits obtained using these estimates (Figure 1). In this case, it is also possible to plot the fit against the true curves, 
-since the true values of the parameters that were used to generate the observations are known. 
-```
-R> plot(est, type='fit', pars_true=theta[lin_pars], 
-+       mfrow=c(1,2), legend=TRUE)
-```
-
-![True and estimated solutions $x_1$ and $x_2$ of the biochemical system of equation (9)](figure1.png)
-
 More examples of usages of ``simode``, including examples with Lotka-Volterra,
 FitzHugh-Nagumo spike potential equations and SIR (Susceptible-Infected-Recovered) 
 systems, can be found in the package demos and the package manual [@simode].
