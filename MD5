@@ -1,12 +1,12 @@
-6a5462851a7a4aec197d8678cbc986be *DESCRIPTION
+8501daf534eebb06b7ce4660c3c6ef38 *DESCRIPTION
 2899ce9efb75c8b3919848094ea2b65d *NAMESPACE
 b0729375b0041014387fed3281ee2c78 *R/calc_loss.R
 5fbdaf6c9247d38a3a05c10094ac95d0 *R/simode.R
 6dc5ef44e4ef331f5dc7ff718f6e2365 *R/simode_fit.R
 a3461e67f887f10380914a21b40046a6 *R/simode_multi.R
 e521077cb5e8cfec91375fcfd139551d *R/simode_profile.R
-2591c2684584662b35eff9ed28faea69 *R/utils.R
-dd63a1651402c2a3db1e8e41043855cc *README.md
+63dcfbcefb7043bcfe3661aa0314af29 *R/utils.R
+b0dd52854a3b3ba07f981f13b3e017c4 *README.md
 bd5d3f96377a666206ab41cf0f088af7 *build/vignette.rds
 cb50beb3106ae16bfba05794da5043f0 *data/sir_example.RData
 f4faa12a68e0f9dfe423cd547eaf52cf *demo/00Index
@@ -26,7 +26,7 @@ ab9b5e5cefa03dcc1293a7cb9dc247ac *inst/joss/figure3.png
 54fd2c4378ce47a51ca803b7519e783f *inst/joss/paper.bib
 c91ed52764c75bfe78d1f05aac2a9300 *inst/joss/paper.md
 c76b696e703b67ee81f91e2616c2d883 *inst/joss/paper_long.md
-56fbc6bed9d98e023b133a63f299daaf *inst/simode-manual.pdf
+7f627fb5dea4ef0a324c3e7556ce2930 *inst/simode-manual.pdf
 55947146cc0894f73d39e241a4e1cbae *man/confint.profile.simode.Rd
 a699e4aca4c12e67732044d79c127c4e *man/plot.confint.simode.Rd
 8b54b8e1b54432f301afd107ee31d1bb *man/plot.list.simode.Rd
