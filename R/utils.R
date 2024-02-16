@@ -130,7 +130,7 @@ check_obs_validity <- function(obs,time,vars) {
 # @return A mapping of the given parameters to the variables they affect
 # @export
 #
-pars2vars_mapping <- function(pars, equations, named=FALSE) {
+pars2vars_mapping <- function(pars, equations, named=F) {
 
   if(pracma::isempty(pars))
     return (c())
@@ -224,6 +224,27 @@ solve_ode <- function(equations, pars, x0, time, xvars=NULL, ...)
   equations <- lapply(1:length(equations), function(i) parse(text=equations[i]))
   names(equations) <- names(x0)
 
+  # dxvars <- list()
+  # if(!is.null(xvars) && length(xvars)>0) {
+  #   stopifnot(is.list(xvars))
+  #   for(j in 1:length(xvars)) {
+  #     stopifnot(!is.null(names(xvars[j])))
+  #     dxvars[[j]] <- c(diff(xvars[[j]])/diff(time),0)
+  #   }
+  #   eq_xvars <- vector(length=length(xvars))
+  #   xvars_names <- names(xvars)
+  #   eq_xvars <- lapply(1:length(eq_xvars), function(i) {
+  #     # parse(text=paste0(xvars_names[i],'_d[floor(t)]'))
+  #     parse(text=paste0(xvars_names[i],'_d[which.min(abs(times2-t))]'))
+  #   })
+  #   names(dxvars) <- paste0(xvars_names,'_d')
+  #   names(eq_xvars) <- xvars_names
+  #   equations <- c(equations,eq_xvars)
+  #   x0_xvars <- unlist(lapply(1:length(xvars), function(i) xvars[[i]][1]))
+  #   names(x0_xvars) <- xvars_names
+  #   x0 <- c(x0,x0_xvars)
+  # }
+
   arg_list <- list(...)
   trace <- arg_list$trace
   arg_list$trace <- NULL
@@ -235,7 +256,7 @@ solve_ode <- function(equations, pars, x0, time, xvars=NULL, ...)
   {
       if(trace<3){
         tmpfile <- file.path(tempdir(),'simode-ode.log')
-        sink(file=tmpfile,append=FALSE)
+        sink(file=tmpfile,append=F)
       }
       args <- c(list(y=x0, times=time, func=step_ode_model,
                      parms=pars, equations=equations, xvars=xvars, times2=time),arg_list)
@@ -259,55 +280,6 @@ solve_ode <- function(equations, pars, x0, time, xvars=NULL, ...)
   return (out)
 }
 
-#' Ordinary differential equations solver using a \code{simode} object
-#'
-#' A wrapper for the \link[deSolve]{ode} function that solves a system of
-#' ordinary differential equations described using symbolic equations.
-#' @param x A simode object returned from a call to \code{\link{simode}}.
-#' @param type Which solution to generate ('both'\\'nls'\\'im').
-#' @return A matrix whose first column contains the given time points
-#' and subsequent columns hold the computed ODE equations' values at these time points.
-#' @importFrom deSolve ode
-#' @export
-#'
-solve_ode2 <- function(x,type=c("both","im","nls")) {
-  stopifnot(class(x)=='simode')
-  type <- match.arg(type)
-  x0.na <- names(x$x0[is.na(x$x0)])
-  xvars <- setdiff(names(x$obs),names(x$equations))
-  time <- x$time
-  if(is.list(time)) {
-    time <- sort(unique(unlist(time)))
-  }
-  solution <- list()
-  nls_pars_est <- x$nls_pars_est
-  if(type!='im' && !is.null(nls_pars_est)) {
-    if(!is.null(x$scale_pars)) {
-      args <- c(list(pars=nls_pars_est), x$extra_args)
-      nls_pars_est <- do.call(x$scale_pars, args)
-    }
-    x0 <- x$x0
-    x0[x0.na] <- nls_pars_est[x0.na]
-    nls_pars_est <- nls_pars_est[setdiff(names(nls_pars_est),x0.na)]
-    nls_solution <- solve_ode(x$equations, nls_pars_est, x0, time, x$obs[xvars])
-    solution$nls <- nls_solution
-  }
-  im_pars_est <- x$im_pars_est
-  if(type!='nls' && !is.null(im_pars_est)) {
-    if(!is.null(x$scale_pars)) {
-      args <- c(list(pars=im_pars_est), x$extra_args)
-      im_pars_est <- do.call(x$scale_pars, args)
-    }
-    x0 <- x$x0
-    x0[x0.na] <- im_pars_est[x0.na]
-    im_pars_est <- im_pars_est[setdiff(names(im_pars_est),x0.na)]
-    im_solution <- solve_ode(x$equations, im_pars_est, x0, x$time, x$obs[xvars])
-    solution$im <- im_solution
-  }
-  return (solution)
-}
-
-
 step_ode_model <- function(t, states, pars, equations, xvars, times2)
 {
   with(as.list(c(states,xvars)), {
@@ -319,7 +291,7 @@ step_ode_model <- function(t, states, pars, equations, xvars, times2)
 smooth_obs <- function(im_smoothing=c('splines','kernel','none'),obs,time,t,bw_factor) {
 
   if(im_smoothing=='splines') {
-    fit <- smooth.spline(time,obs,cv=FALSE)
+    fit <- smooth.spline(time,obs,cv=F)
     sobs <- predict(fit,x=t)$y
   }
   else if(im_smoothing=='kernel') {
@@ -336,7 +308,7 @@ smooth_obs <- function(im_smoothing=c('splines','kernel','none'),obs,time,t,bw_f
     }
   }
   else {
-    sobs <- interp1(time,obs,xi=t,method='linear') #'spline')
+    sobs <- interp1(time,obs,xi=t,method='spline')
   }
   return (sobs)
 }

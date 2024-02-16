@@ -5,14 +5,13 @@
 #'  (the default, i.e., first integral-matching then nonlinear least squares starting
 #'   from the integral-matching estimates).
 #' @param im_optim_method Method for optimization during the integral-matching stage.
-#' Accepted values are any method supported by the \code{method} argument in \code{\link{optim}},
-#' as well as \'Rvmmin\' and \'Rcgmin\', if the relevant packages are installed.
+#' Accepted values are any method supported by the \code{method} argument in \code{\link{optim}}.
 #' @param nls_optim_method Method for optimization during the nonlinear least squares stage.
 #' Accepted values are the same as in \code{im_optim_method}.
 #' @param im_optim_control A list with control parameters for optimization during the
 #' integral-matching stage. Can include anything that would appear in the \code{control} argument
-#' in \code{optim}/\code{Rvmmin}/\code{Rcgmin} (depending on the choice of \code{im_optim_method}).
-#' See \code{\link{optim}}, \code{\link[Rvmmin]{Rvmmin}}, \code{\link[Rcgmin]{Rcgmin}}.
+#' in \code{optim} (depending on the choice of \code{im_optim_method}).
+#' See \code{\link{optim}}.
 #' @param nls_optim_control Control parameters for optimization during the
 #' nonlinear least squares stage (as in \code{im_optim_control})
 #' @param ode_control A list with control parameters for the ODE solver. Can include the argument
@@ -44,10 +43,15 @@
 #' Instead, one can set \code{save_to_log} to true to save the output to a log file.
 #' @param save_to_log Controls whether to redirect output to a log file.
 #' If true, output will be saved to the file 'simode.log' in tempdir.
-#' @details Possible values for \code{im_smoothing} are \'splines\' (the default),
+#' @param reg_alpha Value of tuning parameter alpha for regularization during the
+#' integral-matching stage. Negative value means no regularization. A value between
+#' 0 and 1 controls the type of regularization (see \code{\link[glmnet]{glmnet}} and
+#' \code{\link[ncvreg]{ncvreg}}).
+#' @param reg_pkg What package to use for regularization (in case reg_alpha>=0).
+#' @details Possible values for \code{im_smoothing} are “splines” (the default),
 #' in which case smoothing will be performed using \code{\link[stats]{smooth.spline}}
-#' with generalized cross-validation, \'kernel\', using own kernel smoother function,
-#' or \'none\' (using the observations as is, with interpolation if necessary).
+#' with generalized cross-validation, “kernel”, using own kernel smoother function,
+#' or “none” (using the observations as is, with interpolation if necessary).
 #' \code{use_pars2vars_mapping} controls whether to use a mapping of which equations
 #' are affected by each of the parameters. When set to true, previous matrices computed as part of
 #' the integral-matching estimation are stored during the integral-matching optimization,
@@ -56,7 +60,7 @@
 #' When the number of equations is large and some of the parameters affect only a few equations,
 #' setting this option to true can significantly reduce the optimization time during
 #' the integral-matching stage (while increasing the storage usage).
-#' This is especially true with derivative based optimization methods (such as \'BFGS\' of optim)
+#' This is especially true with derivative based optimization methods (such as “BFGS” of optim)
 #' which updates only one of the optimized parameters in each iteration.
 #' \code{trace} has 5 possible levels:\cr
 #' With trace=0, there would be no output displayed if there are no errors.\cr
@@ -68,19 +72,18 @@
 #' @export
 simode.control <- function(optim_type=c("both","im","nls"),
                           im_optim_method=
-                            c("BFGS", "Nelder-Mead", "CG", "L-BFGS-B", "SANN",
-                               "Brent", "Rcgmin", "Rvmmin"),
+                            c("BFGS", "Nelder-Mead", "CG", "L-BFGS-B", "SANN", "Brent"),
                           nls_optim_method=
-                            c("BFGS", "Nelder-Mead", "CG", "L-BFGS-B", "SANN",
-                              "Brent", "Rcgmin", "Rvmmin"),
+                            c("BFGS", "Nelder-Mead", "CG", "L-BFGS-B", "SANN", "Brent"),
                           im_optim_control=list(), nls_optim_control=list(),
                           ode_control=list(method="lsoda"),
                           im_smoothing=c('splines','kernel','none'),
                           im_grid_size=0, bw_factor=1.5,
-                          use_pars2vars_mapping=FALSE,
-                          trace=0, save_im_trace=FALSE, save_nls_trace=FALSE,
+                          use_pars2vars_mapping=F,
+                          trace=0, save_im_trace=F, save_nls_trace=F,
                           obs_sets_fit=c('separate','separate_x0','together'),
-                          parallel=FALSE, save_to_log=FALSE)
+                          parallel=F, save_to_log=F,
+                          reg_alpha=-1, reg_pkg=c('glmnet','ncvreg'))
 {
 
   simode_ctrl <- list()
@@ -117,6 +120,10 @@ simode.control <- function(optim_type=c("both","im","nls"),
 
   simode_ctrl$decouple_sep <- '__'
 
+  simode_ctrl$reg_alpha <- reg_alpha
+
+  simode_ctrl$reg_pkg <- match.arg(reg_pkg)
+
   class(simode_ctrl) <- "simode.control"
 
   return(simode_ctrl)
@@ -136,14 +143,30 @@ call_optim <- function(step, args, simode_ctrl) {
     cat(noquote(msg))
   }
 
+  remove_zeros <- F
+  if(step==2 && simode_ctrl$reg_alpha >= 0) {
+    # remove zero pars if using regularization
+    pars_est <- args$par
+    pars <- names(args$par)
+    zero_pars <- names(pars_est[pars_est==0])
+    zero_fixed <- NULL
+    remove_zeros <- length(zero_pars)>0
+    if(remove_zeros) {
+      zero_fixed[zero_pars] <- 0
+      args$equations <- fix_pars(args$equations, zero_fixed)
+      pars_nz <- setdiff1(pars, zero_pars)
+      args$par <- args$par[pars_nz]
+      args$pars_min <- args$pars_min[pars_nz]
+      args$pars_max <- args$pars_max[pars_nz]
+    }
+  }
 
   if(step==1)
     optim_method_name <- simode_ctrl$im_optim_method
   else
     optim_method_name <- simode_ctrl$nls_optim_method
 
-  if(optim_method_name=="Rcgmin" || optim_method_name=="Rvmmin" ||
-     optim_method_name=="L-BFGS-B" || optim_method_name=="Brent") {
+  if(optim_method_name=="L-BFGS-B" || optim_method_name=="Brent") {
 
     if(!is.null(args$pars_min)){
       args$lower <- args$pars_min
@@ -159,18 +182,8 @@ call_optim <- function(step, args, simode_ctrl) {
     args$ode_control <- simode_ctrl$ode_control
   }
 
-  if(optim_method_name=="Rcgmin" || optim_method_name=="Rvmmin") {
-    if(!is.null(args$pars_min) && !is.null(args$pars_max)) {
-      args$bdmsk <- as.numeric(args$pars_min < args$pars_max)
-    }
-    if(optim_method_name=="Rcgmin")
-      optim_method <- Rcgmin::Rcgmin
-    else
-      optim_method <- Rvmmin::Rvmmin
-  } else {
-    args$method <- optim_method_name
-    optim_method <- stats::optim
-  }
+  args$method <- optim_method_name
+  optim_method <- stats::optim
 
   optim_result <- NULL
   err_msg <- NULL
@@ -189,9 +202,13 @@ call_optim <- function(step, args, simode_ctrl) {
   }
 
   if(!is.null(args$pars_min))
-    optim_result$par <- pmax(optim_result$par,args$pars_min,na.rm=TRUE)
+    optim_result$par <- pmax(optim_result$par,args$pars_min,na.rm=T)
   if(!is.null(args$pars_max))
-    optim_result$par <- pmin(optim_result$par,args$pars_max,na.rm=TRUE)
+    optim_result$par <- pmin(optim_result$par,args$pars_max,na.rm=T)
+
+  if(remove_zeros) {
+    optim_result$par <- c(optim_result$par,zero_fixed)[pars]
+  }
 
   if(simode_ctrl$trace > 0) {
     if(step==1)
@@ -219,7 +236,6 @@ simode_linear <- function(simode_obj, simode_env, ...) {
   obs <- simode_obj$obs
   likelihood_pars <- simode_obj$likelihood_pars
   start <- simode_obj$start
-  scale_pars <- simode_obj$scale_pars
   gen_obs <- simode_obj$gen_obs
   calc_nll <- simode_obj$calc_nll
   if(is.null(calc_nll))
@@ -245,10 +261,10 @@ simode_linear <- function(simode_obj, simode_env, ...) {
     im_loss <- calc_im_loss(
       pars=NULL, equations=equations, x0=x0, time=time, obs=obs,
       lin_pars_names=lin_pars,lin_pars_min=lin_pars_min,
-      lin_pars_max=lin_pars_max, gen_obs=gen_obs, scale_pars=scale_pars,
+      lin_pars_max=lin_pars_max, gen_obs=gen_obs,
       im_smoothing=ctrl$im_smoothing, im_grid_size=ctrl$im_grid_size,
-      bw_factor=ctrl$bw_factor,trace=ctrl$trace+1, save_im_trace=FALSE,
-      simode_env=simode_env, ...)
+      bw_factor=ctrl$bw_factor, reg_alpha=ctrl$reg_alpha, reg_pkg=ctrl$reg_pkg,
+      trace=ctrl$trace+1, save_im_trace=F, simode_env=simode_env, ...)
 
     if(is.infinite(im_loss) || is.null(im_loss)) {
       cat('Error during integral-matching estimation\n')
@@ -275,7 +291,7 @@ simode_linear <- function(simode_obj, simode_env, ...) {
     simode_obj$im_loss <- im_loss
     simode_obj$im_smooth <- list(time=simode_env$im$t,val=simode_env$im$im_smooth)
 
-  } else { #do_im_opt==FALSE
+  } else { #do_im_opt==F
     pars_est <- start[pars]
   }
 
@@ -289,7 +305,7 @@ simode_linear <- function(simode_obj, simode_env, ...) {
               equations=equations, x0=x0, time=time, obs=obs,
               pars_min=simode_obj$lower, pars_max=simode_obj$upper,
               fixed=simode_obj$fixed,
-              calc_nll=calc_nll, scale_pars=scale_pars, trace=ctrl$trace,
+              calc_nll=calc_nll, trace=ctrl$trace,
               save_nls_trace=ctrl$save_nls_trace,
               simode_env=simode_env, ...)
 
@@ -320,7 +336,6 @@ simode_nonlinear <- function(simode_obj, simode_env, ...) {
   start <- simode_obj$start
   pars_min <- simode_obj$lower
   pars_max <- simode_obj$upper
-  scale_pars <- simode_obj$scale_pars
   gen_obs <- simode_obj$gen_obs
   calc_nll <- simode_obj$calc_nll
   if(is.null(calc_nll))
@@ -364,8 +379,9 @@ simode_nonlinear <- function(simode_obj, simode_env, ...) {
         im_loss <- calc_im_loss(
           pars=nlin_pars_init, equations=equations, x0=x0, time=time, obs=obs,
           lin_pars_names=lin_pars, lin_pars_min=lin_pars_min, lin_pars_max=lin_pars_max,
-          gen_obs=gen_obs, scale_pars=scale_pars, im_smoothing=ctrl$im_smoothing,
+          gen_obs=gen_obs, im_smoothing=ctrl$im_smoothing,
           im_grid_size=ctrl$im_grid_size, bw_factor=ctrl$bw_factor,
+          reg_alpha=ctrl$reg_alpha, reg_pkg=ctrl$reg_pkg,
           trace=ctrl$trace+1, simode_env=simode_env, ...)
 
         if(is.infinite(im_loss) || is.null(im_loss)) {
@@ -396,8 +412,7 @@ simode_nonlinear <- function(simode_obj, simode_env, ...) {
                    im_method=im_method, lin_pars_names=lin_pars,
                    lin_pars_min=lin_pars_min, lin_pars_max=lin_pars_max,
                    pars_min=opt_pars_min, pars_max=opt_pars_max,
-                   gen_obs=gen_obs, scale_pars=scale_pars,
-                   pars2vars=pars2vars,
+                   gen_obs=gen_obs, pars2vars=pars2vars,
                    im_smoothing=ctrl$im_smoothing,
                    im_grid_size=ctrl$im_grid_size,
                    bw_factor=ctrl$bw_factor,
@@ -415,10 +430,11 @@ simode_nonlinear <- function(simode_obj, simode_env, ...) {
                      time=time, obs=obs, im_method=im_method, lin_pars_names=lin_pars,
                      lin_pars_min=lin_pars_min, lin_pars_max=lin_pars_max,
                      gen_obs=gen_obs,
-                     scale_pars=scale_pars,
                      im_smoothing=ctrl$im_smoothing,
                      im_grid_size=ctrl$im_grid_size,
                      bw_factor=ctrl$bw_factor,
+                     reg_alpha=ctrl$reg_alpha,
+                     reg_pkg=ctrl$reg_pkg,
                      simode_env=simode_env, ...)
       pars_est <-
         c(opt_pars_est, simode_env$im$theta ,simode_env$im$x0[which(is.na(x0))])
@@ -442,7 +458,7 @@ simode_nonlinear <- function(simode_obj, simode_env, ...) {
       simode_obj$im_est_trace <- simode_env$im_est_trace[,im_pars]
     }
   }
-  else { #do_im_opt==FALSE
+  else { #do_im_opt==F
     pars_est <- simode_obj$start[pars]
   }
 
@@ -456,7 +472,7 @@ simode_nonlinear <- function(simode_obj, simode_env, ...) {
            control=ctrl$nls_optim_control,
            equations=equations, x0=x0, time=time, obs=obs,
            pars_min=pars_min, pars_max=pars_max,
-           fixed=simode_obj$fixed, calc_nll=calc_nll, scale_pars=scale_pars,
+           fixed=simode_obj$fixed, calc_nll=calc_nll,
            trace=ctrl$trace, save_nls_trace=ctrl$save_nls_trace,
            simode_env=simode_env, ...)
 
@@ -480,7 +496,7 @@ simode_create <-
            nlin_pars, likelihood_pars,
            fixed, start, lower, upper,
            im_method, decouple_equations,
-           gen_obs, calc_nll, scale_pars, simode_ctrl) {
+           gen_obs, calc_nll, simode_ctrl) {
 
   stopifnot(is.character(equations), is.character(pars))
 
@@ -536,7 +552,6 @@ simode_create <-
 
   stopifnot(is.null(gen_obs) || is.function(gen_obs))
   stopifnot(is.null(calc_nll) || is.function(calc_nll))
-  stopifnot(is.null(scale_pars) || is.function(scale_pars))
 
   if(!is.null(nlin_pars))
     stopifnot(is.character(nlin_pars))
@@ -574,13 +589,13 @@ simode_create <-
     }
   }
 
-  if(decouple_equations==TRUE) {
-    # if(!is.null(gen_obs)) {
-    #   stop("Cannot set decouple_equations=TRUE when using gen_obs to generate missing observations")
-    # }
+  if(decouple_equations==T) {
+    if(!is.null(gen_obs)) {
+      stop("Cannot set decouple_equations=T when using gen_obs to generate missing observations")
+    }
     if(simode_ctrl$optim_type=='nls') {
       warning(paste0("when running simode with optim_type==\'nls\' ",
-                     "there is no effect for decouple_equations=TRUE"), immediate.=TRUE)
+                     "there is no effect for decouple_equations=T"), immediate.=T)
       decouple_equations <- F
     }
   }
@@ -590,7 +605,7 @@ simode_create <-
       if(!pracma::isempty(setdiff(names(start),c(nlin_pars,likelihood_pars)))) {
         warning(paste0("start contain values for parameters that do not ",
                        "appear in nlin_pars or likelihood_pars - with im_method=\'separable\' ",
-                       "these values will be ignored."), immediate.=TRUE)
+                       "these values will be ignored."), immediate.=T)
       }
       start <- start[c(nlin_pars,likelihood_pars)]
     }
@@ -608,14 +623,13 @@ simode_create <-
     if(!pracma::isempty(setdiff(names(lower),pars))) {
       extra <- paste('[',setdiff(names(lower),pars),']',collapse='')
       warning(paste0("lower contain parameter names that do not",
-                    " appear in pars and will be ignored: ",extra), immediate.=TRUE)
+                    " appear in pars and will be ignored: ",extra), immediate.=T)
     }
     lower_all <- rep(-Inf,length(pars))
     names(lower_all) <- pars
     lower_names <- intersect(pars,names(lower))
     lower_all[lower_names] <- lower[lower_names]
     lower <- lower_all
-    start <- pmax(start[c(nlin_pars,likelihood_pars)],lower[c(nlin_pars,likelihood_pars)])
   }
   if(!is.null(upper)) {
     stopifnot(is.numeric(upper),!is.null(names(upper)))
@@ -623,14 +637,13 @@ simode_create <-
     if(!pracma::isempty(setdiff(names(upper),pars))) {
       extra <- paste('[',setdiff(names(upper),pars),']',collapse='')
       warning(paste0("upper contain parameter names that do not",
-                   " appear in pars and will be ignored: ", extra), immediate.=TRUE)
+                   " appear in pars and will be ignored: ", extra), immediate.=T)
     }
     upper_all <- rep(Inf,length(pars))
     names(upper_all) <- pars
     upper_names <- intersect(pars,names(upper))
     upper_all[upper_names] <- upper[upper_names]
     upper <- upper_all
-    start <- pmin(start[c(nlin_pars,likelihood_pars)],upper[c(nlin_pars,likelihood_pars)])
   }
 
   if(!(simode_ctrl$optim_type %in% c("im", "nls", "both"))) {
@@ -638,36 +651,16 @@ simode_create <-
   }
 
   if(!(simode_ctrl$im_optim_method %in%
-       c("Nelder-Mead", "BFGS", "CG", "L-BFGS-B", "SANN",
-         "Brent", "Rcgmin", "Rvmmin"))) {
+       c("Nelder-Mead", "BFGS", "CG", "L-BFGS-B", "SANN", "Brent"))) {
     warning("unknown im_optim_method selected - using default \'BFGS\'",
-            immediate.=TRUE)
+            immediate.=T)
     simode_ctrl$im_optim_method <- "BFGS"
   }
   if(!(simode_ctrl$nls_optim_method %in%
-       c("Nelder-Mead", "BFGS", "CG", "L-BFGS-B", "SANN",
-         "Brent", "Rcgmin", "Rvmmin"))) {
+       c("Nelder-Mead", "BFGS", "CG", "L-BFGS-B", "SANN", "Brent"))) {
     warning("unknown nls_optim_method selected - using default \'BFGS\'",
-            immediate.=TRUE)
+            immediate.=T)
     simode_ctrl$nls_optim_method <- "BFGS"
-  }
-  if((simode_ctrl$im_optim_method=="Rvmmin" ||
-      simode_ctrl$nls_optim_method=="Rvmmin") &&
-     !requireNamespace("Rvmmin", quietly=TRUE)) {
-    warning("Rvmmin package not installed - using default \'BFGS\'",immediate.=TRUE)
-    if(simode_ctrl$im_optim_method=="Rvmmin")
-      simode_ctrl$im_optim_method <- "BFGS"
-    if(simode_ctrl$nls_optim_method=="Rvmmin")
-      simode_ctrl$nls_optim_method <- "BFGS"
-  }
-  if((simode_ctrl$im_optim_method=="Rcgmin" ||
-      simode_ctrl$nls_optim_method=="Rcgmin") &&
-     !requireNamespace("Rcgmin", quietly=TRUE)) {
-    warning("Rcgmin package not installed - using default \'BFGS\'",immediate.=TRUE)
-    if(simode_ctrl$im_optim_method=="Rcgmin")
-      simode_ctrl$im_optim_method <- "BFGS"
-    if(simode_ctrl$nls_optim_method=="Rcgmin")
-      simode_ctrl$nls_optim_method <- "BFGS"
   }
 
   if(!(simode_ctrl$im_smoothing %in% c("splines", "kernel", "none"))) {
@@ -684,8 +677,7 @@ simode_create <-
                 likelihood_pars=likelihood_pars, fixed=fixed,
                 start=start, lower=lower, upper=upper,
                 decouple_equations=decouple_equations,
-                gen_obs=gen_obs, calc_nll=calc_nll, scale_pars=scale_pars,
-                ctrl=simode_ctrl)
+                gen_obs=gen_obs, calc_nll=calc_nll, ctrl=simode_ctrl)
   class(simode) <- "simode"
 
   return (simode)
@@ -736,7 +728,7 @@ simode_create <-
 #' initial conditions. Parameters in this list will not be estimated.
 #' @param start Named vector. Starting values for optimization of parameters/initial conditions.
 #' Must contain starting values for all the parameters in \code{nlin_pars}
-#' and \code{likelihood_pars}. If im_method="non-separable", can optionally contain
+#' and \code{likelihood_pars}. If im_method="non-seperable", can optionally contain
 #' starting values for any other parameter/initial condition.
 #' @param lower Named vector. Lower bounds for any parameter/initial condition.
 #' @param upper Named vector. Upper bounds for any parameter/initial condition.
@@ -746,11 +738,9 @@ simode_create <-
 #' If none of the parameters are linear then the default can be used.
 #' @param decouple_equations Whether to fit each equation separately
 #' in the integral-matching stage.
-#' @param gen_obs An optional user-defined function for completing missing observations (see Details).
-#' @param calc_nll An optional user-defined function for calculating negative log-likelihood for
+#' @param gen_obs A user-defined function for completing missing observations (see Details).
+#' @param calc_nll A user-defined function for calculating negative log-likelihood for
 #' the model (see Details).
-#' @param scale_pars An optional user-defined function for scaling transformations of parameters
-#' estimated using non-linear optimization (see Details).
 #' @param simode_ctrl Various control parameters. See \code{\link{simode.control}}.
 #' @param ... Additional arguments passed to \code{optim}, \code{gen_obs} and \code{calc_nll}
 #' @details \code{gen_obs} can be used in cases of a partially observed system,
@@ -788,21 +778,8 @@ simode_create <-
 #' \item \code{...} additional parameters passed from the call to \code{\link{simode}}
 #' }
 #' The function should return the negative log-likelihood.
-#'
-#' \code{scale_pars} allows the user to pass a function for rescaling transformations
-#' of some/all of the parameters estimated using non-linear optimization. The function
-#' will be called at each step of the optimization with the current values of the parameters,
-#' as the optimization algorithm sees them, and will return rescaled parameters values to be used
-#' in estimation of the direct parameters (stage 1) and in solving the ODE equations (stage 2).
-#' It must be defined as
-#' \code{scale_pars <- function(pars, ...)}, where:
-#' \itemize{
-#' \item \code{pars} the parameter values
-#' \item \code{...} additional parameters passed from the call to \code{\link{simode}}
-#' }
-#' The function should return the rescaled parameter values.
 #' @return If \code{obs_sets=1}, the function returns a \code{simode} object containing the
-#' parameter estimates and solutions after integral-matching (stage 1) and after
+#' parameter estimates after integral-matching (stage 1) and after
 #' nonlinear least squares optimization (stage 2). If \code{obs_sets>1} and
 #' \code{obs_sets_fit!="together"} in \code{simode_ctrl}, the function
 #' returns a \code{list.simode} object which is a list of \code{simode} objects
@@ -859,19 +836,20 @@ simode_create <-
 #' plot(profiles_fit2,mfrow=c(2,3))
 #' ci_fit2 <- confint(profiles_fit2)
 #' ci_fit2
-#' plot(ci_fit2,pars_true=c(theta,x0),legend=TRUE)
+#' plot(ci_fit2,pars_true=c(theta,x0),legend=T)
 #' }
 #'
 #' @importFrom pracma interp1 trapz cumtrapz lsqlincon
 #' @importFrom stats D smooth.spline predict
+#' @importFrom glmnet glmnet cv.glmnet
+#' @importFrom ncvreg ncvreg cv.ncvreg
 #' @export
 #'
 simode <- function(equations, pars, time, obs, obs_sets=1,
                   nlin_pars=NULL, likelihood_pars=NULL,
                   fixed=NULL, start=NULL, lower=NULL, upper=NULL,
-                  im_method=c("separable","non-separable"), decouple_equations=FALSE,
-                  gen_obs=NULL, calc_nll=NULL, scale_pars=NULL,
-                  simode_ctrl=simode.control(), ...) {
+                  im_method=c("separable","non-separable"), decouple_equations=F,
+                  gen_obs=NULL, calc_nll=NULL, simode_ctrl=simode.control(), ...) {
 
   if(is.list(equations)){
     eq_names <- names(equations)
@@ -890,8 +868,7 @@ simode <- function(equations, pars, time, obs, obs_sets=1,
                          nlin_pars=nlin_pars, likelihood_pars=likelihood_pars,
                          fixed=fixed, start=start, lower=lower, upper=upper, im_method=im_method,
                          decouple_equations=decouple_equations, gen_obs=gen_obs,
-                         calc_nll=calc_nll, scale_pars=scale_pars,
-                         simode_ctrl=simode_ctrl, ...))
+                         calc_nll=calc_nll, simode_ctrl=simode_ctrl, ...))
   }
 
   simode_obj <- simode_create(
@@ -899,13 +876,13 @@ simode <- function(equations, pars, time, obs, obs_sets=1,
               nlin_pars, likelihood_pars,
               fixed, start, lower, upper,
               im_method, decouple_equations,
-              gen_obs, calc_nll, scale_pars, simode_ctrl)
+              gen_obs, calc_nll, simode_ctrl)
 
   simode_obj$extra_args <- list(...)
 
   if(simode_obj$ctrl$save_to_log) {
     log_file <- file.path(tempdir(),"simode.log")
-    sink(file=log_file, append=FALSE)
+    sink(file=log_file, append=F)
     cat(noquote(paste0("Call to simode on [", Sys.time(), "]:\n")))
   }
 
@@ -955,6 +932,10 @@ simode_decouple <- function(x) {
       x0 <- x$x0[eq_names0]
       obs <- x$obs[vars1]
       time <- x$time
+      if(is.list(time)) {
+        names(time) <- names(x$obs)
+        time <- x$time[vars1]
+      }
       nlin_pars <- x$nlin_pars[x$nlin_pars %in% pars1]
       start <- x$start[names(x$start) %in% pars1]
       lower <- x$lower[names(x$lower) %in% pars1]
@@ -966,7 +947,7 @@ simode_decouple <- function(x) {
                          time=time, obs=obs, im_method=x$im_method, nlin_pars=nlin_pars,
                          likelihood_pars=x$likelihood_pars, fixed=x$fixed,
                          start=start, lower=lower, upper=upper,
-                         gen_obs=x$gen_obs, calc_nll=x$calc_nll, scale_pars=x$scale_pars,
+                         gen_obs=x$gen_obs, calc_nll=x$calc_nll,
                          ctrl=ctrl,extra_args=x$extra_args)
       class(simode_obj) <- "simode"
       if(x$ctrl$trace > 0) {
@@ -989,7 +970,7 @@ simode_decouple <- function(x) {
     }
   }
   x$im_pars_est_mat <- im_pars_est_mat
-  x$im_pars_est <- colMeans(im_pars_est_mat,na.rm=TRUE)
+  x$im_pars_est <- colMeans(im_pars_est_mat,na.rm=T)
   x$im_pars_est[x$likelihood_pars] <- NA
   x$im_loss <- sum(im_loss_vec)
   if(x$ctrl$optim_type!='im') {
@@ -1017,19 +998,10 @@ simode_impl <- function(x) {
         simode_obj <- do.call("simode_linear", args)
       else
         simode_obj <- do.call("simode_nonlinear", args)
-
-      if(!is.null(simode_obj)) {
-        sol <- solve_ode2(simode_obj)
-        if(!is.null(sol$im))
-          simode_obj$im_sol <- sol$im[,-1]
-        if(!is.null(sol$nls))
-          simode_obj$nls_sol <- sol$nls[,-1]
-      }
     },
     error = function(e) { print(e) },
     finally = {
-      if(!is.null(simode_obj))
-        simode_obj$im <- simode_env$im
+      simode_obj$im <- simode_env$im
       rm(simode_env)
     }
   )
@@ -1084,7 +1056,7 @@ simode_cleanup <- function(save_to_log)
 #'
 plot.simode <- function(x, type=c('fit','est'), show=c('nls','im','both'),
                        which=NULL, pars_true=NULL, time=NULL,
-                       plot_im_smooth=FALSE, legend=FALSE, mfrow=par('mfrow'),
+                       plot_im_smooth=F, legend=F, mfrow=par('mfrow'),
                        cols=list(nls_fit="blue",im_fit="green", true="black",
                                  obs="red", im_smooth="magenta"), ...) {
 
@@ -1140,13 +1112,13 @@ plot_trace <- function(x, show=c('nls','im','both'),
 
   if(show=="im" || show=="both") {
     gof_trace <- x$im_loss_trace
-    ylim <- c(min(gof_trace,na.rm=TRUE),min(max(gof_trace,na.rm=TRUE),1.05*gof_trace[1]))
+    ylim <- c(min(gof_trace,na.rm=T),min(max(gof_trace,na.rm=T),1.05*gof_trace[1]))
     plot(gof_trace,type='p',pch=20,ylab='im_loss',
          ylim=ylim, col=cols[['im_fit']], ...)
   }
   if(show=="nls" || show=="both") {
     gof_trace <- x$nls_trace
-    ylim <- c(min(gof_trace,na.rm=TRUE),min(max(gof_trace,na.rm=TRUE),1.05*gof_trace[1]))
+    ylim <- c(min(gof_trace,na.rm=T),min(max(gof_trace,na.rm=T),1.05*gof_trace[1]))
     plot(gof_trace,type='p',pch=20,ylab='nls-loss',
          ylim=ylim, col=cols[['nls_fit']], ...)
   }

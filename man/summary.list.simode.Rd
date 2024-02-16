@@ -6,7 +6,7 @@
 \usage{
 \method{summary}{list.simode}(
   object,
-  sum_mean_sd = FALSE,
+  sum_mean_sd = F,
   pars_true = NULL,
   digits = max(3, getOption("digits") - 3),
   ...
@@ -21,7 +21,7 @@ for the parameter estimates in the fits included in the given \code{object}.
 To be used when \code{object} is the result of fitting monte-carlo simulations.}
 
 \item{pars_true}{The true parameter values (relevant only for
-when \code{sum_mean_sd=TRUE}). When given, the summary will also include the
+when \code{sum_mean_sd=T}). When given, the summary will also include the
 bias and RMSE for each parameter estimate.}
 
 \item{digits}{The number of significant digits to use.}

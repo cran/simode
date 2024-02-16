@@ -2,7 +2,7 @@
 
 calc_nls <- function(pars, time, obs, model_out, ...) {
 
-  if(!is.list(time)) {
+  if(is.vector(time)) {
     sum(unlist(lapply(names(obs),function(var)
       (model_out[,var] - obs[[var]])^2)))
   }
@@ -30,14 +30,14 @@ calc_nll_normal <- function(pars, time, obs, model_out, sigma_name, ...) {
   sigma <- pars[sigma_name]
   if(is.vector(time)){
     -sum(unlist(lapply(names(obs),function(var) {
-      stats::dnorm(obs[[var]],mean=model_out[,var],sd=sigma,log=TRUE)
+      stats::dnorm(obs[[var]],mean=model_out[,var],sd=sigma,log=T)
     })))
   }
   else {
     time_ode <- model_out[,1]
     -sum(unlist(lapply(names(obs),function(var) {
       stats::dnorm(obs[[var]],mean=model_out[which(time_ode %in% time[[var]]),var],
-                   sd=sigma,log=TRUE)
+            sd=sigma,log=T)
     })))
   }
 }
@@ -80,26 +80,23 @@ calc_nll_normal <- function(pars, time, obs, model_out, sigma_name, ...) {
 # @return The integral-matching loss value
 #
 calc_im_loss <- function(pars, equations, x0, time, obs,
-                         im_method=c("separable","non-separable"),
-                         lin_pars_names, lin_pars_min=NULL, lin_pars_max=NULL,
-                         pars_min=NULL, pars_max=NULL, gen_obs=NULL, scale_pars=NULL,
-                         pars2vars=NULL, im_smoothing=c('splines','kernel','none'),
-                         im_grid_size=0, bw_factor=1.5,
-                         trace=0, save_im_trace=FALSE, simode_env=emptyenv(), ...)
+                  im_method=c("separable","non-separable"),
+                  lin_pars_names, lin_pars_min=NULL, lin_pars_max=NULL,
+                  pars_min=NULL, pars_max=NULL, gen_obs=NULL,
+                  pars2vars=NULL, im_smoothing=c('splines','kernel','none'),
+                  im_grid_size=0, bw_factor=1.5, reg_alpha=-1, reg_pkg=c('glmnet','ncvreg'),
+                  trace=0, save_im_trace=F, simode_env=emptyenv(), ...)
 {
   im_method <- match.arg(im_method)
 
   if(!is.null(pars_min)) {
     stopifnot(all(names(pars)==names(pars_min)))
-    pars <- pmax(pars,pars_min,na.rm=TRUE)
+    pars <- pmax(pars,pars_min,na.rm=T)
   }
   if(!is.null(pars_max)) {
     stopifnot(all(names(pars)==names(pars_max)))
-    pars <- pmin(pars,pars_max,na.rm=TRUE)
+    pars <- pmin(pars,pars_max,na.rm=T)
   }
-
-  if(!is.null(scale_pars))
-    pars <- scale_pars(pars,...)
 
   x0_to_est <- names(which(is.na(x0)))
   x0_opt <- intersect(x0_to_est,names(pars))
@@ -136,12 +133,13 @@ calc_im_loss <- function(pars, equations, x0, time, obs,
   im_fit <- NULL
   tryCatch( {
     im_fit <- simode_fit(equations=equations, pars=lin_pars_names, time=time, obs=obs, x0=x0,
-                         pars_min=lin_pars_min, pars_max=lin_pars_max,
-                         im_smoothing=im_smoothing, im_grid_size=im_grid_size, bw_factor=bw_factor,
-                         vars2update=vars2update, im_fit_prev=simode_env$im, trace=trace)
-  },
-  warning = function(w) { if(trace>2) print(w) },
-  error = function(e) { if(trace>1) print(e) }
+               pars_min=lin_pars_min, pars_max=lin_pars_max,
+               im_smoothing=im_smoothing, im_grid_size=im_grid_size, bw_factor=bw_factor,
+               reg_alpha=reg_alpha, reg_pkg=reg_pkg, vars2update=vars2update,
+               im_fit_prev=simode_env$im, trace=trace)
+    },
+    warning = function(w) { if(trace>2) print(w) },
+    error = function(e) { if(trace>1) print(e) }
   )
 
   if(is.null(im_fit)) {
@@ -208,34 +206,31 @@ calc_im_loss <- function(pars, equations, x0, time, obs,
 # @return The nonlinear least squares loss value
 #
 calc_nls_loss <- function(pars, equations, x0, time, obs,
-                          pars_min=NULL, pars_max=NULL,
-                          fixed=NULL, calc_nll=calc_nls, scale_pars=NULL,
-                          trace=0, save_nls_trace=FALSE, ode_control=NULL,
-                          simode_env=emptyenv(), ...)
+                        pars_min=NULL, pars_max=NULL,
+                        fixed=NULL, calc_nll=calc_nls,
+                        trace=0, save_nls_trace=F, ode_control=NULL,
+                        simode_env=emptyenv(), ...)
 {
 
   if(!is.null(pars_min)) {
     stopifnot(all(names(pars)==names(pars_min)))
-    pars <- pmax(pars,pars_min,na.rm=TRUE)
+    pars <- pmax(pars,pars_min,na.rm=T)
   }
   if(!is.null(pars_max)) {
     stopifnot(all(names(pars)==names(pars_max)))
-    pars <- pmin(pars,pars_max,na.rm=TRUE)
+    pars <- pmin(pars,pars_max,na.rm=T)
   }
-
-  if(!is.null(scale_pars))
-    pars <- scale_pars(pars,...)
 
   if(any(is.na(x0))) {
     x0_to_est <- names(which(is.na(x0)))
     x0[x0_to_est] <- pars[x0_to_est]
-    stopifnot(any(is.na(x0))==FALSE)
+    stopifnot(any(is.na(x0))==F)
   }
   non_x0_pars <- pars[setdiff(names(pars),names(x0))]
 
   time_ode <- time
   if(is.list(time)) {
-    time_ode <- sort(unique(unlist(time)))
+    time_model <- sort(unique(unlist(time)))
     names(time) <- names(obs)
   }
 
@@ -246,13 +241,7 @@ calc_nls_loss <- function(pars, equations, x0, time, obs,
 
   args <- c(list(equations=equations, pars=non_x0_pars,
                  x0=x0, time=time_ode, xvars=xvars_obs, trace=trace), ode_control)
-  tryCatch({
-    model_out <- do.call(solve_ode, args)
-  },
-  error = function(e) {
-    print(e)
-    model_out <- NULL
-    })
+  model_out <- do.call(solve_ode, args)
 
   if(is.null(model_out) || (length(model_out[,1]) != length(time_ode))) {
     return (Inf)

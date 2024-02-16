@@ -6,23 +6,23 @@
 \usage{
 simode.control(
   optim_type = c("both", "im", "nls"),
-  im_optim_method = c("BFGS", "Nelder-Mead", "CG", "L-BFGS-B", "SANN", "Brent",
-    "Rcgmin", "Rvmmin"),
-  nls_optim_method = c("BFGS", "Nelder-Mead", "CG", "L-BFGS-B", "SANN", "Brent",
-    "Rcgmin", "Rvmmin"),
+  im_optim_method = c("BFGS", "Nelder-Mead", "CG", "L-BFGS-B", "SANN", "Brent"),
+  nls_optim_method = c("BFGS", "Nelder-Mead", "CG", "L-BFGS-B", "SANN", "Brent"),
   im_optim_control = list(),
   nls_optim_control = list(),
   ode_control = list(method = "lsoda"),
   im_smoothing = c("splines", "kernel", "none"),
   im_grid_size = 0,
   bw_factor = 1.5,
-  use_pars2vars_mapping = FALSE,
+  use_pars2vars_mapping = F,
   trace = 0,
-  save_im_trace = FALSE,
-  save_nls_trace = FALSE,
+  save_im_trace = F,
+  save_nls_trace = F,
   obs_sets_fit = c("separate", "separate_x0", "together"),
-  parallel = FALSE,
-  save_to_log = FALSE
+  parallel = F,
+  save_to_log = F,
+  reg_alpha = -1,
+  reg_pkg = c("glmnet", "ncvreg")
 )
 }
 \arguments{
@@ -32,16 +32,15 @@ integral-matching ('im'), only nonlinear least squares ('nls') or both
   from the integral-matching estimates).}
 
 \item{im_optim_method}{Method for optimization during the integral-matching stage.
-Accepted values are any method supported by the \code{method} argument in \code{\link{optim}},
-as well as \'Rvmmin\' and \'Rcgmin\', if the relevant packages are installed.}
+Accepted values are any method supported by the \code{method} argument in \code{\link{optim}}.}
 
 \item{nls_optim_method}{Method for optimization during the nonlinear least squares stage.
 Accepted values are the same as in \code{im_optim_method}.}
 
 \item{im_optim_control}{A list with control parameters for optimization during the
 integral-matching stage. Can include anything that would appear in the \code{control} argument
-in \code{optim}/\code{Rvmmin}/\code{Rcgmin} (depending on the choice of \code{im_optim_method}).
-See \code{\link{optim}}, \code{\link[Rvmmin]{Rvmmin}}, \code{\link[Rcgmin]{Rcgmin}}.}
+in \code{optim} (depending on the choice of \code{im_optim_method}).
+See \code{\link{optim}}.}
 
 \item{nls_optim_control}{Control parameters for optimization during the
 nonlinear least squares stage (as in \code{im_optim_control})}
@@ -85,15 +84,22 @@ Instead, one can set \code{save_to_log} to true to save the output to a log file
 
 \item{save_to_log}{Controls whether to redirect output to a log file.
 If true, output will be saved to the file 'simode.log' in tempdir.}
+
+\item{reg_alpha}{Value of tuning parameter alpha for regularization during the
+integral-matching stage. Negative value means no regularization. A value between
+0 and 1 controls the type of regularization (see \code{\link[glmnet]{glmnet}} and
+\code{\link[ncvreg]{ncvreg}}).}
+
+\item{reg_pkg}{What package to use for regularization (in case reg_alpha>=0).}
 }
 \description{
 Class containing control parameters for a call to \code{simode}
 }
 \details{
-Possible values for \code{im_smoothing} are \'splines\' (the default),
+Possible values for \code{im_smoothing} are “splines” (the default),
 in which case smoothing will be performed using \code{\link[stats]{smooth.spline}}
-with generalized cross-validation, \'kernel\', using own kernel smoother function,
-or \'none\' (using the observations as is, with interpolation if necessary).
+with generalized cross-validation, “kernel”, using own kernel smoother function,
+or “none” (using the observations as is, with interpolation if necessary).
 \code{use_pars2vars_mapping} controls whether to use a mapping of which equations
 are affected by each of the parameters. When set to true, previous matrices computed as part of
 the integral-matching estimation are stored during the integral-matching optimization,
@@ -102,7 +108,7 @@ parameter estimates from the previous iteration.
 When the number of equations is large and some of the parameters affect only a few equations,
 setting this option to true can significantly reduce the optimization time during
 the integral-matching stage (while increasing the storage usage).
-This is especially true with derivative based optimization methods (such as \'BFGS\' of optim)
+This is especially true with derivative based optimization methods (such as “BFGS” of optim)
 which updates only one of the optimized parameters in each iteration.
 \code{trace} has 5 possible levels:\cr
 With trace=0, there would be no output displayed if there are no errors.\cr

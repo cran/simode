@@ -11,12 +11,12 @@
   which = NULL,
   pars_true = NULL,
   time = NULL,
-  plot_mean_sd = FALSE,
-  plot_im_smooth = FALSE,
-  legend = FALSE,
+  plot_mean_sd = F,
+  plot_im_smooth = F,
+  legend = F,
   mfrow = par("mfrow"),
-  cols = list(nls_fit = "blue", im_fit = "green", true = "black", obs = "red",
-    im_smooth = "magenta"),
+  cols = list(nls_fit = "blue", im_fit = "green", true = "black", obs = "red", im_smooth
+    = "magenta"),
   ...
 )
 }

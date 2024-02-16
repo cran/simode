@@ -15,7 +15,7 @@ simode_multi_worker <- function(...) {
             nlin_pars=nlin_pars, likelihood_pars=likelihood_pars,
             fixed=fixed, start=start, lower=lower, upper=upper,
             im_method=im_method, decouple_equations=decouple_equations,
-            gen_obs=gen_obs, calc_nll=calc_nll, scale_pars=scale_pars,
+            gen_obs=gen_obs, calc_nll=calc_nll,
             simode_ctrl=simode_ctrl), extra_args)
       do.call("simode", args)
     })
@@ -29,38 +29,33 @@ simode_multi <- function(equations, pars, time, obs,
                         nlin_pars, likelihood_pars,
                         fixed, start, lower, upper,
                         im_method, decouple_equations,
-                        gen_obs, calc_nll, scale_pars, simode_ctrl, ...) {
+                        gen_obs, calc_nll, simode_ctrl, ...) {
 
   if(simode_ctrl$obs_sets_fit == 'together')
     return (simode_multi_together(equations=equations, pars=pars,  time=time, obs=obs,
                          nlin_pars=nlin_pars, likelihood_pars=likelihood_pars,
                          fixed=fixed, start=start, lower=lower, upper=upper,
                          im_method=im_method, decouple_equations=decouple_equations,
-                         gen_obs=gen_obs, calc_nll=calc_nll, scale_pars=scale_pars,
-                         simode_ctrl=simode_ctrl, ...))
+                         gen_obs=gen_obs, calc_nll=calc_nll, simode_ctrl=simode_ctrl, ...))
 
   else if(simode_ctrl$obs_sets_fit == 'separate_x0')
     return (simode_multi_separate_x0(equations=equations, pars=pars,  time=time, obs=obs,
                                   nlin_pars=nlin_pars, likelihood_pars=likelihood_pars,
                                   fixed=fixed, start=start, lower=lower, upper=upper,
                                   im_method=im_method, decouple_equations=decouple_equations,
-                                  gen_obs=gen_obs, calc_nll=calc_nll, scale_pars=scale_pars,
-                                  simode_ctrl=simode_ctrl, ...))
+                                  gen_obs=gen_obs, calc_nll=calc_nll, simode_ctrl=simode_ctrl, ...))
 
   return (simode_multi_separate(equations=equations, pars=pars,  time=time, obs=obs,
                                 nlin_pars=nlin_pars, likelihood_pars=likelihood_pars,
                                 fixed=fixed, start=start, lower=lower, upper=upper,
                                 im_method=im_method, decouple_equations=decouple_equations,
-                                gen_obs=gen_obs, calc_nll=calc_nll, scale_pars=scale_pars,
-                                simode_ctrl=simode_ctrl, ...))
+                                gen_obs=gen_obs, calc_nll=calc_nll, simode_ctrl=simode_ctrl, ...))
 }
 
 simode_multi_together <- function(equations, pars, time, obs,
                          nlin_pars, likelihood_pars,
                          fixed, start, lower, upper,
-                         im_method, decouple_equations,
-                         gen_obs, calc_nll, scale_pars,
-                         simode_ctrl, ...) {
+                         im_method, decouple_equations, gen_obs, calc_nll, simode_ctrl, ...) {
   obs_mean <- list()
   obs_sets <- length(obs)
   for(i in 1:length(obs[[1]])) {
@@ -75,23 +70,19 @@ simode_multi_together <- function(equations, pars, time, obs,
            nlin_pars=nlin_pars, likelihood_pars=likelihood_pars,
            fixed=fixed, start=start, lower=lower, upper=upper,
            im_method=im_method, decouple_equations=decouple_equations,
-           gen_obs=gen_obs, calc_nll=calc_nll, scale_pars=scale_pars,
-           simode_ctrl=simode_ctrl, ...))
+           gen_obs=gen_obs, calc_nll=calc_nll, simode_ctrl=simode_ctrl, ...))
 }
 
 simode_multi_separate_x0 <- function(equations, pars, time, obs,
                                   nlin_pars, likelihood_pars,
                                   fixed, start, lower, upper,
                                   im_method, decouple_equations,
-                                  gen_obs, calc_nll, scale_pars, simode_ctrl, ...) {
+                                  gen_obs, calc_nll, simode_ctrl, ...) {
   sep <- simode_ctrl$decouple_sep
   eq_names <- names(equations)
   vars <- names(obs[[1]])
   equations_m <- c()
   obs_m <- c()
-  time_m <- c()
-  if(!is.list(time))
-    time_m <- time
   obs_sets <- length(obs)
   for(i in 1:obs_sets) {
     vars1 <- paste0(vars,sep,i)
@@ -99,12 +90,6 @@ simode_multi_separate_x0 <- function(equations, pars, time, obs,
     obs1 <- obs[[i]]
     names(obs1) <- vars1
     obs_m <- c(obs_m,obs1)
-    if(is.list(time)) {
-      stopifnot(length(time)==length(obs1))
-      time1 <- time
-      names(time1) <- vars1
-      time_m <- c(time_m,time1)
-    }
     equations1 <- fix_pars(equations,vars1)
     names(equations1) <- paste0(eq_names,sep,i)
     equations_m <- c(equations_m,equations1)
@@ -121,32 +106,15 @@ simode_multi_separate_x0 <- function(equations, pars, time, obs,
     nlin_pars_x0_ex <- paste0(nlin_pars_x0,sep,unlist(lapply(1:obs_sets,function(i) rep(i,length(nlin_pars_x0)))))
     nlin_pars_m <- c(setdiff(nlin_pars,nlin_pars_x0),nlin_pars_x0_ex)
   }
-  if(!is.list(fixed)) {
-    fixed_m <- fixed
-    fixed_x0_names <- intersect(names(fixed),eq_names)
-    if(!pracma::isempty(fixed_x0_names)) {
-      fixed_x0 <- rep(fixed[fixed_x0_names],obs_sets)
-      names(fixed_x0) <-
-        paste0(fixed_x0_names,sep,
-               unlist(lapply(1:obs_sets,function(i) rep(i,length(equations)))))
-      fixed_m <- c(fixed[setdiff(names(fixed),fixed_x0_names)],fixed_x0)
-    }
+  fixed_m <- fixed
+  fixed_x0_names <- intersect(names(fixed),eq_names)
+  if(!pracma::isempty(fixed_x0_names)) {
+    fixed_x0 <- rep(fixed[fixed_x0_names],obs_sets)
+    names(fixed_x0) <-
+      paste0(fixed_x0_names,sep,
+             unlist(lapply(1:obs_sets,function(i) rep(i,length(equations)))))
+    fixed_m <- c(fixed[setdiff(names(fixed),fixed_x0_names)],fixed_x0)
   }
-  else {
-    stopifnot(length(fixed)==obs_sets)
-    fixed_m <- c()
-    for(i in 1:obs_sets) {
-      fixed_x0_names <- intersect(names(fixed[[i]]),eq_names)
-      if(!pracma::isempty(fixed_x0_names)) {
-        fixed_x0 <- fixed[[i]][fixed_x0_names]
-        names(fixed_x0) <- paste0(fixed_x0_names,sep,i)
-        fixed_m <- c(fixed_m,fixed[[i]][setdiff(names(fixed[[i]]),fixed_x0_names)],fixed_x0)
-      }
-      else
-        fixed_m <- c(fixed_m,fixed[[i]])
-    }
-  }
-
   start_m <- start
   start_x0_names <- intersect(names(start),eq_names)
   if(!pracma::isempty(start_x0_names)) {
@@ -175,12 +143,11 @@ simode_multi_separate_x0 <- function(equations, pars, time, obs,
     upper_m <- c(upper[setdiff(names(upper),upper_x0_names)],upper_x0)
   }
 
-  x <- simode(equations=equations_m, pars=pars_m, time=time_m, obs=obs_m,
+  x <- simode(equations=equations_m, pars=pars_m, time=time, obs=obs_m,
               nlin_pars=nlin_pars_m, likelihood_pars=likelihood_pars,
               fixed=fixed_m, start=start_m, lower=lower_m, upper=upper_m,
               im_method=im_method, decouple_equations=decouple_equations,
-              gen_obs=gen_obs, calc_nll=calc_nll, scale_pars=scale_pars,
-              simode_ctrl=simode_ctrl, ...)
+              gen_obs=gen_obs, calc_nll=calc_nll, simode_ctrl=simode_ctrl, ...)
 
   if(is.null(x))
     return (NULL)
@@ -198,10 +165,6 @@ simode_multi_separate_x0 <- function(equations, pars, time, obs,
     x_list[[i]]$obs <- obs[[i]]
     x_list[[i]]$x0 <- NULL
     x_list[[i]]$x0[pars_x0] <- x$x0[paste0(pars_x0,sep,i)]
-    fixed_x0_names <- intersect(names(fixed[[i]]),eq_names)
-    if(!pracma::isempty(fixed_x0_names)) {
-      x_list[[i]]$x0[fixed_x0_names] <- fixed[[i]][fixed_x0_names]
-    }
     if(!is.null(x$im_pars_est)) {
       x_list[[i]]$im_pars_est <- x$im_pars_est[setdiff(pars,pars_x0)]
       x_list[[i]]$im_pars_est[pars_x0] <- x$im_pars_est[paste0(pars_x0,sep,i)]
@@ -223,11 +186,11 @@ simode_multi_separate <- function(equations, pars, time, obs,
                          nlin_pars, likelihood_pars,
                          fixed, start, lower, upper,
                          im_method, decouple_equations,
-                         gen_obs, calc_nll, scale_pars, simode_ctrl, ...) {
+                         gen_obs, calc_nll, simode_ctrl, ...) {
 
-  if(simode_ctrl$parallel==TRUE && !requireNamespace("parallel", quietly=TRUE)) {
+  if(simode_ctrl$parallel==T && !requireNamespace("parallel", quietly=T)) {
     warning("parallel package not installed - running sequentially",
-            immediate.=TRUE)
+            immediate.=T)
     simode_ctrl$parallel <- F
   }
 
@@ -241,9 +204,9 @@ simode_multi_separate <- function(equations, pars, time, obs,
   obs_sets <- length(obs)
   tryCatch(
     {
-      if(simode_ctrl$parallel==FALSE) {
+      if(simode_ctrl$parallel==F) {
         if(!is.null(log_file)) {
-          sink(file=log_file, append=FALSE)
+          sink(file=log_file, append=F)
           cat(noquote((paste0("Call to simode on [", Sys.time(), "]:\n"))))
         }
         simode_fits <- list()
@@ -254,8 +217,7 @@ simode_multi_separate <- function(equations, pars, time, obs,
                     nlin_pars=nlin_pars, likelihood_pars=likelihood_pars,
                     fixed=fixed, start=start, lower=lower, upper=upper,
                     im_method=im_method, decouple_equations=decouple_equations,
-                    gen_obs=gen_obs, calc_nll=calc_nll, scale_pars=scale_pars,
-                    simode_ctrl=simode_ctrl, ...)
+                    gen_obs=gen_obs, calc_nll=calc_nll, simode_ctrl=simode_ctrl, ...)
         }
       }
       else {
@@ -266,13 +228,13 @@ simode_multi_separate <- function(equations, pars, time, obs,
           nlin_pars=nlin_pars, likelihood_pars=likelihood_pars,
           fixed=fixed, start=start, lower=lower, upper=upper,
           im_method=im_method, decouple_equations=decouple_equations,
-          gen_obs=gen_obs, calc_nll=calc_nll, scale_pars=scale_pars,
+          gen_obs=gen_obs, calc_nll=calc_nll,
           simode_ctrl=simode_ctrl, extra_args=extra_args)
       }
     },
     error = function(e) { print(e) },
     finally={
-      if(simode_ctrl$parallel==TRUE && !is.null(cl))
+      if(simode_ctrl$parallel==T && !is.null(cl))
         parallel::stopCluster(cl)
       }
   )
@@ -291,7 +253,7 @@ simode_multi_separate <- function(equations, pars, time, obs,
 #' for the parameter estimates in the fits included in the given \code{object}.
 #' To be used when \code{object} is the result of fitting monte-carlo simulations.
 #' @param pars_true The true parameter values (relevant only for
-#' when \code{sum_mean_sd=TRUE}). When given, the summary will also include the
+#' when \code{sum_mean_sd=T}). When given, the summary will also include the
 #' bias and RMSE for each parameter estimate.
 #' @param digits The number of significant digits to use.
 #' @param ... Additional argument(s) for methods.
@@ -301,7 +263,7 @@ simode_multi_separate <- function(equations, pars, time, obs,
 #' will also calculate bias and RMSE for the parameter estimates.
 #' @export
 #'
-summary.list.simode <- function(object, sum_mean_sd=FALSE, pars_true=NULL,
+summary.list.simode <- function(object, sum_mean_sd=F, pars_true=NULL,
                                 digits=max(3, getOption("digits")-3), ...) {
 
   pars <- object[[1]]$pars
@@ -310,7 +272,7 @@ summary.list.simode <- function(object, sum_mean_sd=FALSE, pars_true=NULL,
 
   if(!is.null(pars_true)) {
     if(!sum_mean_sd)
-      warning('parameter pars_true is only relevant when sum_mean_sd==TRUE')
+      warning('parameter pars_true is only relevant when sum_mean_sd==T')
     else
       stopifnot(!is.null(names(pars_true)),all(names(pars_true) %in% pars))
   }
@@ -384,9 +346,9 @@ summary.list.simode <- function(object, sum_mean_sd=FALSE, pars_true=NULL,
       summary$est$true <- signif(pars_true[pars], digits)
       im_est_bias <- signif(im_est_mean - pars_true[pars],digits)
       nls_est_bias <- signif(nls_est_mean - pars_true[pars],digits)
-      im_est_err <- im_est-matrix(rep(pars_true[pars],simode_num),nrow=simode_num,byrow=TRUE)
+      im_est_err <- im_est-matrix(rep(pars_true[pars],simode_num),nrow=simode_num,byrow=T)
       im_est_rmse <- signif(sqrt(apply(im_est_err^2,2,mean)),digits)
-      nls_est_err <- nls_est-matrix(rep(pars_true[pars],simode_num),nrow=simode_num,byrow=TRUE)
+      nls_est_err <- nls_est-matrix(rep(pars_true[pars],simode_num),nrow=simode_num,byrow=T)
       nls_est_rmse <- signif(sqrt(apply(nls_est_err^2,2,mean)),digits)
     }
 
@@ -449,8 +411,8 @@ summary.list.simode <- function(object, sum_mean_sd=FALSE, pars_true=NULL,
 plot.list.simode <-
   function(x, type=c('fit','est'), show=c('nls','im','both'),
            which=NULL, pars_true=NULL, time=NULL,
-           plot_mean_sd=FALSE, plot_im_smooth=FALSE,
-           legend=FALSE, mfrow=par('mfrow'),
+           plot_mean_sd=F, plot_im_smooth=F,
+           legend=F, mfrow=par('mfrow'),
            cols=list(nls_fit="blue",im_fit="green", true="black",
                      obs="red", im_smooth="magenta"), ...) {
 
@@ -493,7 +455,7 @@ plot.list.simode <-
 
 plot_list_simode_est <-
         function(x, show=c('nls','im','both'),
-                 which=NULL, pars_true=NULL, plot_mean_sd=FALSE, legend=FALSE,
+                 which=NULL, pars_true=NULL, plot_mean_sd=F, legend=F,
                  cols=list(nls_fit="blue",im_fit="green", true="black"),
                  fit_num=NULL, ...) {
 
@@ -517,7 +479,7 @@ plot_list_simode_est <-
   pind <- which(as.vector(x[[1]]$pars) %in% pars)
 
   if(plot_mean_sd) {
-    sum <- summary(x, sum_mean_sd=TRUE)
+    sum <- summary(x, sum_mean_sd=T)
     im_est_mean <- apply(as.matrix(1:lp),1,function(i) sum$est[pind[i],]$im_mean)
     im_est_sd <- apply(as.matrix(1:lp),1,function(i) sum$est[pind[i],]$im_sd)
     nls_est_mean <- apply(as.matrix(1:lp),1,function(i) sum$est[pind[i],]$nls_mean)
@@ -533,35 +495,35 @@ plot_list_simode_est <-
   y_min <- Inf
   y_max <- -Inf
   if(!is.null(pars_true)) {
-      y_min <- min(pars_true[pars],na.rm=TRUE)
-      y_max <- max(pars_true[pars],na.rm=TRUE)
+      y_min <- min(pars_true[pars],na.rm=T)
+      y_max <- max(pars_true[pars],na.rm=T)
   }
   if(plot_mean_sd) {
     if(plot_nls_est) {
       min_nls <- nls_est_mean[pars] - nls_est_sd[pars]
       max_nls <- nls_est_mean[pars] + nls_est_sd[pars]
-      y_min <- min(c(y_min,min_nls),na.rm=TRUE)
-      y_max <- max(c(y_max,max_nls),na.rm=TRUE)
+      y_min <- min(c(y_min,min_nls),na.rm=T)
+      y_max <- max(c(y_max,max_nls),na.rm=T)
     }
     if(plot_im_est) {
       min_im <- im_est_mean[pars] - im_est_sd[pars]
       max_im <- im_est_mean[pars] + im_est_sd[pars]
-      y_min <- min(c(y_min,min_im),na.rm=TRUE)
-      y_max <- max(c(y_max,max_im),na.rm=TRUE)
+      y_min <- min(c(y_min,min_im),na.rm=T)
+      y_max <- max(c(y_max,max_im),na.rm=T)
     }
   }
   else {
     if(plot_nls_est) {
       min_nls <- min(unlist(lapply(1:length(x),function(i) min(x[[i]]$nls_pars_est[pars]))))
       max_nls <- max(unlist(lapply(1:length(x),function(i) max(x[[i]]$nls_pars_est[pars]))))
-      y_min <- min(c(y_min,min_nls),na.rm=TRUE)
-      y_max <- max(c(y_max,max_nls),na.rm=TRUE)
+      y_min <- min(c(y_min,min_nls),na.rm=T)
+      y_max <- max(c(y_max,max_nls),na.rm=T)
     }
     if(plot_im_est) {
       min_im <- min(unlist(lapply(1:length(x),function(i) min(x[[i]]$im_pars_est[pars]))))
       max_im <- max(unlist(lapply(1:length(x),function(i) max(x[[i]]$im_pars_est[pars]))))
-      y_min <- min(c(y_min,min_im),na.rm=TRUE)
-      y_max <- max(c(y_max,max_im),na.rm=TRUE)
+      y_min <- min(c(y_min,min_im),na.rm=T)
+      y_max <- max(c(y_max,max_im),na.rm=T)
     }
   }
 
@@ -571,7 +533,7 @@ plot_list_simode_est <-
   legend_pch <- c()
 
   if(legend) {
-    old.par <- par(xpd=TRUE, mar=c(4,4,2,6))
+    old.par <- par(xpd=T, mar=c(4,4,2,6))
     on.exit(par(old.par))
   }
 
@@ -594,7 +556,7 @@ plot_list_simode_est <-
         x_vals <- x_vals-0.1
       points(x=x_vals, im_est_mean[pars], col=cols[['im_fit']], xaxt="n",...)
       errorbar(x=x_vals, im_est_mean[pars], yerr=im_est_sd[pars],
-               bar.col=cols[['im_fit']], grid=FALSE, add=TRUE, xaxt="n")
+               bar.col=cols[['im_fit']], grid=F, add=T, xaxt="n")
       legend_text <- c(legend_text,'im_mean','im_sd')
       legend_cols <- c(legend_cols,cols[['im_fit']],cols[['im_fit']])
       legend_lty <- c(legend_lty,0,1)
@@ -606,7 +568,7 @@ plot_list_simode_est <-
         x_vals <- x_vals+0.1
       points(x=x_vals, nls_est_mean[pars], col=cols[['nls_fit']], xaxt="n",...)
       errorbar(x=x_vals, nls_est_mean[pars], yerr=nls_est_sd[pars],
-               bar.col=cols[['nls_fit']], grid=FALSE, add=TRUE, xaxt="n")
+               bar.col=cols[['nls_fit']], grid=F, add=T, xaxt="n")
       legend_text <- c(legend_text,'nls_mean','nls_sd')
       legend_cols <- c(legend_cols,cols[['nls_fit']],cols[['nls_fit']])
       legend_lty <- c(legend_lty,0,1)
@@ -654,32 +616,19 @@ plot_list_simode_est <-
 plot_list_simode_fit <-
   function(x, show=c('nls','im','both'),
            which=NULL, pars_true=NULL, time=NULL,
-           plot_mean_sd=FALSE, plot_im_smooth=FALSE, legend=FALSE, mfrow=par('mfrow'),
+           plot_mean_sd=F, plot_im_smooth=F, legend=F, mfrow=par('mfrow'),
            cols=list(nls_fit="blue",im_fit="green", true="black",
                      obs="red", im_smooth="magenta"),
-           fit_num=NULL, main=NULL,...) {
+           fit_num=NULL, ...) {
 
 
   show <- match.arg(show)
   plot_nls_fit <- (show=='nls' || show=='both')
   plot_im_fit <- (show=='im' || show=='both')
 
-  x0.na <- names(x[[1]]$x0[is.na(x[[1]]$x0)])
-  xvars <- setdiff(names(x[[1]]$obs),names(x[[1]]$equations))
-
   vars <- which
   if(is.null(vars))
-    vars <- setdiff(names(x[[1]]$obs),xvars)
-
-  if(!is.null(main)) {
-    if(length(main)==1) {
-      main <- rep(main,length(vars))
-    }
-    else {
-      stopifnot(length(main)==length(vars))
-    }
-    names(main) <- vars
-  }
+    vars <- names(x[[1]]$obs)
 
   if(length(x)==1)
     plot_mean_sd <- F
@@ -692,14 +641,14 @@ plot_list_simode_fit <-
   if(!is.list(x[[1]]$time)) {
     if(is.null(time))
       time <- x[[1]]$time
-    time_obs <- rep(list(x[[1]]$time),length(x[[1]]$obs[vars]))
+    time_obs <- rep(list(x[[1]]$time),length(x[[1]]$obs))
+    names(time_obs) <- names(x[[1]]$obs)
   }
   else {
     if(is.null(time))
       time <- sort(unique(unlist(x[[1]]$time)))
-    time_obs <- x[[1]]$time[which(names(x[[1]]$obs) %in% vars)]
+    time_obs <- x[[1]]$time
   }
-  names(time_obs) <- vars
 
   y_min <- unlist(lapply(vars, function(i) min(x[[1]]$obs[[i]])))
   y_max <- unlist(lapply(vars, function(i) max(x[[1]]$obs[[i]])))
@@ -709,18 +658,21 @@ plot_list_simode_fit <-
   legend_text <- c('obs')
   legend_cols <- cols[['obs']]
 
+  x0.na <- names(x[[1]]$x0[is.na(x[[1]]$x0)])
+  xvars = setdiff(names(x[[1]]$obs),names(x[[1]]$equations))
+
   if(!is.null(pars_true)) {
     x0_true <- x[[1]]$x0
     x0_true[x0.na] <- pars_true[x0.na]
     pars_true <- pars_true[setdiff(names(pars_true),x0.na)]
     model_true <- solve_ode(x[[1]]$equations, pars_true, x0_true, time, x[[1]]$obs[xvars])
-    if(is.null(model_true)) {
+    if(is.null(model_true[[1]])) {
       stop('Error running model with pars_true values')
     }
     legend_text <- c(legend_text, 'true')
     legend_cols <- c(legend_cols, cols[['true']])
-    y_min1 <- apply(as.matrix(model_true[,vars]), 2, function(col) min(col))
-    y_max1 <- apply(as.matrix(model_true[,vars]), 2, function(col) max(col))
+    y_min1 <- apply(model_true[,vars], 2, function(col) min(col))
+    y_max1 <- apply(model_true[,vars], 2, function(col) max(col))
     y_min <- pmin(y_min,y_min1)
     y_max <- pmax(y_max,y_max1)
   }
@@ -728,12 +680,15 @@ plot_list_simode_fit <-
   model_nls_est <- list()
   if(plot_nls_fit) {
     for(i in 1:length(x)) {
-      simode_obj <- x[[i]]
-      simode_obj$time <- time
-      model_nls_est[[i]] <- solve_ode2(simode_obj,'nls')$nls
-      if(is.null(model_nls_est[[i]])) {
-        fn <- ifelse(!is.null(fit_num),fit_num,i)
-        stop(paste0('Error running model with nls estimates of fit #',fn))
+      if(!is.null(x[[i]]$nls_pars_est)) {
+        x0_nls <- x[[i]]$x0
+        x0_nls[x0.na] <- x[[i]]$nls_pars_est[x0.na]
+        pars_est_nls <- x[[i]]$nls_pars_est[setdiff(names(x[[i]]$nls_pars_est),x0.na)]
+        model_nls_est[[i]] <- solve_ode(x[[i]]$equations, pars_est_nls, x0_nls, time, x[[1]]$obs[xvars])
+        if(is.null(model_nls_est[[i]])) {
+          fn <- ifelse(!is.null(fit_num),fit_num,i)
+          stop(paste0('Error running model with nls estimates of fit #',fn))
+        }
       }
     }
     model_nls_est_mean <- matrix(0,nrow=length(time), ncol=length(vars))
@@ -752,8 +707,8 @@ plot_list_simode_fit <-
     text <- ifelse(plot_mean_sd,'nls_mean_sd','nls_fit')
     legend_text <- c(legend_text, text)
     legend_cols <- c(legend_cols, cols[['nls_fit']])
-    y_min1 <- apply(as.matrix(model_nls_est_mean[,vars]-model_nls_est_sd[,var]), 2, function(col) min(col))
-    y_max1 <- apply(as.matrix(model_nls_est_mean[,vars]+model_nls_est_sd[,var]), 2, function(col) max(col))
+    y_min1 <- apply(model_nls_est_mean[,vars]-model_nls_est_sd[,var], 2, function(col) min(col))
+    y_max1 <- apply(model_nls_est_mean[,vars]+model_nls_est_sd[,var], 2, function(col) max(col))
     y_min <- pmin(y_min,y_min1)
     y_max <- pmax(y_max,y_max1)
   }
@@ -761,12 +716,15 @@ plot_list_simode_fit <-
   model_im_est <- list()
   if(plot_im_fit) {
     for(i in 1:length(x)) {
-      simode_obj <- x[[i]]
-      simode_obj$time <- time
-      model_im_est[[i]] <- solve_ode2(simode_obj,'im')$im
-      if(is.null(model_im_est[[i]])) {
-        fn <- ifelse(!is.null(fit_num),fit_num,i)
-        stop(paste0('Error running model with im estimates of fit #',fn))
+      if(!is.null(x[[i]]$im_pars_est)) {
+        x0_im <- x[[i]]$x0
+        x0_im[x0.na] <- x[[i]]$im_pars_est[x0.na]
+        pars_est_im <- x[[i]]$im_pars_est[setdiff(names(x[[i]]$im_pars_est),x0.na)]
+        model_im_est[[i]] <- solve_ode(x[[i]]$equations, pars_est_im, x0_im, time, x[[1]]$obs[xvars])
+        if(is.null(model_im_est[[i]])) {
+          fn <- ifelse(!is.null(fit_num),fit_num,i)
+          stop(paste0('Error running model with im estimates of fit #',fn))
+        }
       }
     }
     model_im_est_mean <- matrix(0,nrow=length(time), ncol=length(vars))
@@ -812,7 +770,7 @@ plot_list_simode_fit <-
   }
 
   if(legend)
-    old.par <- par(mfrow=mfrow, mar=c(4,4,2,6), xpd=TRUE)
+    old.par <- par(mfrow=mfrow, mar=c(4,4,2,6), xpd=T)
   else
     old.par <- par(mfrow=mfrow, mar=c(4,4,2,6))
 
@@ -821,14 +779,12 @@ plot_list_simode_fit <-
   for(var in vars) {
 
     ylab <- ifelse(is.null(fit_num),var,paste0(var,' (fit ',fit_num,')'))
-
-    time_var <- time_obs[[var]]
     plot(-100,-100,xlab='time',ylab=ylab,
-         xlim=c(time_var[1],time_var[length(time_var)]),
-         ylim=c(y_min[var],y_max[var]), main=main[var], ...)
+         xlim=c(time[1],time[length(time)]),
+         ylim=c(y_min[var],y_max[var]), ...)
 
     for(i in 1:length(x)) {
-      points(time_var,x[[i]]$obs[[var]],col=cols[['obs']],...)
+      points(time_obs[[var]],x[[i]]$obs[[var]],col=cols[['obs']],...)
     }
 
     if(!is.null(pars_true)) {
@@ -839,17 +795,17 @@ plot_list_simode_fit <-
       if(plot_im_smooth) {
         lines(im_time,model_im_smooth_mean[,var],col=cols[['im_smooth']],...)
         errorbar(x=im_time, model_im_smooth_mean[,var], yerr=model_im_smooth_sd[,var],
-                 bar.col=cols[['im_smooth']], grid=FALSE, add=TRUE, xaxt="n",...)
+                 bar.col=cols[['im_smooth']], grid=F, add=T, xaxt="n",...)
       }
       if(plot_im_fit) {
         lines(time,model_im_est_mean[,var],col=cols[['im_fit']],...)
         errorbar(x=time, model_im_est_mean[,var], yerr=model_im_est_sd[,var],
-                 bar.col=cols[['im_fit']], grid=FALSE, add=TRUE, xaxt="n")
+                 bar.col=cols[['im_fit']], grid=F, add=T, xaxt="n")
       }
       if(plot_nls_fit) {
         lines(time,model_nls_est_mean[,var],col=cols[['nls_fit']],...)
         errorbar(x=time, model_nls_est_mean[,var], yerr=model_nls_est_sd[,var],
-                 bar.col=cols[['nls_fit']], grid=FALSE, add=TRUE, xaxt="n")
+                 bar.col=cols[['nls_fit']], grid=F, add=T, xaxt="n")
       }
     }
     else {

@@ -18,10 +18,9 @@ simode(
   lower = NULL,
   upper = NULL,
   im_method = c("separable", "non-separable"),
-  decouple_equations = FALSE,
+  decouple_equations = F,
   gen_obs = NULL,
   calc_nll = NULL,
-  scale_pars = NULL,
   simode_ctrl = simode.control(),
   ...
 )
@@ -72,7 +71,7 @@ initial conditions. Parameters in this list will not be estimated.}
 
 \item{start}{Named vector. Starting values for optimization of parameters/initial conditions.
 Must contain starting values for all the parameters in \code{nlin_pars}
-and \code{likelihood_pars}. If im_method="non-separable", can optionally contain
+and \code{likelihood_pars}. If im_method="non-seperable", can optionally contain
 starting values for any other parameter/initial condition.}
 
 \item{lower}{Named vector. Lower bounds for any parameter/initial condition.}
@@ -87,13 +86,10 @@ If none of the parameters are linear then the default can be used.}
 \item{decouple_equations}{Whether to fit each equation separately
 in the integral-matching stage.}
 
-\item{gen_obs}{An optional user-defined function for completing missing observations (see Details).}
+\item{gen_obs}{A user-defined function for completing missing observations (see Details).}
 
-\item{calc_nll}{An optional user-defined function for calculating negative log-likelihood for
+\item{calc_nll}{A user-defined function for calculating negative log-likelihood for
 the model (see Details).}
-
-\item{scale_pars}{An optional user-defined function for scaling transformations of parameters
-estimated using non-linear optimization (see Details).}
 
 \item{simode_ctrl}{Various control parameters. See \code{\link{simode.control}}.}
 
@@ -101,7 +97,7 @@ estimated using non-linear optimization (see Details).}
 }
 \value{
 If \code{obs_sets=1}, the function returns a \code{simode} object containing the
-parameter estimates and solutions after integral-matching (stage 1) and after
+parameter estimates after integral-matching (stage 1) and after
 nonlinear least squares optimization (stage 2). If \code{obs_sets>1} and
 \code{obs_sets_fit!="together"} in \code{simode_ctrl}, the function
 returns a \code{list.simode} object which is a list of \code{simode} objects
@@ -149,19 +145,6 @@ then \code{model_out} will contain a union of all these times.
 \item \code{...} additional parameters passed from the call to \code{\link{simode}}
 }
 The function should return the negative log-likelihood.
-
-\code{scale_pars} allows the user to pass a function for rescaling transformations
-of some/all of the parameters estimated using non-linear optimization. The function
-will be called at each step of the optimization with the current values of the parameters,
-as the optimization algorithm sees them, and will return rescaled parameters values to be used
-in estimation of the direct parameters (stage 1) and in solving the ODE equations (stage 2).
-It must be defined as
-\code{scale_pars <- function(pars, ...)}, where:
-\itemize{
-\item \code{pars} the parameter values
-\item \code{...} additional parameters passed from the call to \code{\link{simode}}
-}
-The function should return the rescaled parameter values.
 }
 \examples{
 
@@ -209,7 +192,7 @@ profiles_fit2 <- profile(simode_fit2,step_size=0.01,max_steps=50)
 plot(profiles_fit2,mfrow=c(2,3))
 ci_fit2 <- confint(profiles_fit2)
 ci_fit2
-plot(ci_fit2,pars_true=c(theta,x0),legend=TRUE)
+plot(ci_fit2,pars_true=c(theta,x0),legend=T)
 }
 
 }

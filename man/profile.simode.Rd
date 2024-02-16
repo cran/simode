@@ -11,9 +11,9 @@
   step_size,
   max_steps = 100,
   alpha = 0.05,
-  skip_err = TRUE,
+  skip_err = T,
   trace = 0,
-  save_to_log = FALSE,
+  save_to_log = F,
   ...
 )
 }

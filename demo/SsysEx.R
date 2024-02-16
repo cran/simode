@@ -43,14 +43,11 @@ est_lin <- simode(
   time=time, obs=obs)
 
 est_lin
-x11()
-plot(est_lin, type='fit', pars_true=theta[lin_pars], legend=TRUE)
-x11()
-plot(est_lin, type='est', show='both', pars_true=theta[lin_pars], legend=TRUE)
+plot(est_lin, type='fit', pars_true=theta[lin_pars], legend=T)
+plot(est_lin, type='est', show='both', pars_true=theta[lin_pars], legend=T)
 
 step_size <- 0.01*est_lin$nls_pars_est
 profile_lin <- profile(est_lin,step_size=step_size,max_steps=50,trace=1)
-x11()
 plot(profile_lin,mfrow=c(2,2))
 confint(profile_lin,level=0.95)
 
@@ -65,8 +62,7 @@ est_semilin <- simode(
   nlin_pars=nlin_pars, start=nlin_init)
 
 est_semilin
-x11()
-plot(est_semilin, type='est', show='both', pars_true=theta, legend=TRUE)
+plot(est_semilin, type='est', show='both', pars_true=theta, legend=T)
 
 ## c) ODE nonlinear in the parameters ----------------------------------
 
@@ -76,8 +72,7 @@ est_nosep <- simode(
   time=time, obs=obs)
 
 est_nosep
-x11()
-plot(est_nosep, type='est', show='both', pars_true=theta[nlin_pars], legend=TRUE)
+plot(est_nosep, type='est', show='both', pars_true=theta[nlin_pars], legend=T)
 
 
 ## d) unknown initial conditions ---------------------------------------
@@ -87,8 +82,7 @@ est_all <- simode(
   nlin_pars=nlin_pars, start=nlin_init)
 
 est_all
-x11()
-plot(est_all, type='est', show='both', pars_true=c(theta,x0), legend=TRUE)
+plot(est_all, type='est', show='both', pars_true=c(theta,x0), legend=T)
 
 
 

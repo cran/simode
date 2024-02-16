@@ -44,20 +44,12 @@ simode_fit <- function(equations, pars, time, obs,
                       x0=NULL, pars_min=NULL, pars_max=NULL,
                       im_smoothing=c('splines','kernel','none'),
                       im_grid_size=0, bw_factor=1.5,
+                      reg_alpha=-1, reg_pkg=c('glmnet','ncvreg'),
                       vars2update=NULL, im_fit_prev=NULL, trace=0)
 {
 
   eq_names <- names(equations)
   vars <- names(obs)
-  equations <- unlist(lapply(equations, function(eq) {
-    for (var in vars) {
-      eq <- gsub(paste0('\\<', var, '\\>'), paste0('v.',var), eq)
-    }
-    return (eq)
-  }))
-  vars.org <- vars
-  vars <- paste0('v.',vars)
-  names(obs) <- vars
 
   v <- length(vars)
   p <- length(pars)
@@ -67,15 +59,25 @@ simode_fit <- function(equations, pars, time, obs,
     time <- rep(list(time),v)
   names(time) <- vars
 
-  if(all(is.infinite(pars_min)))
-    pars_min <- NULL
-  if(all(is.infinite(pars_max)))
-    pars_max <- NULL
-  if(!is.null(pars_min))  {
-    pars_min[which(is.infinite(pars_min))] <- -1e100
+  reg_pkg <- match.arg(reg_pkg)
+  reg_alpha <- min(1,reg_alpha)
+  if(reg_alpha >= 0) {
+    if(is.null(pars_min))
+      pars_min[pars] <- -Inf
+    if(is.null(pars_max))
+      pars_max[pars] <- Inf
   }
-  if(!is.null(pars_max)) {
-    pars_max[which(is.infinite(pars_max))] <- 1e100
+  else {
+    if(all(is.infinite(pars_min)))
+      pars_min <- NULL
+    if(all(is.infinite(pars_max)))
+      pars_max <- NULL
+    if(!is.null(pars_min))  {
+      pars_min[which(is.infinite(pars_min))] <- -1e100
+    }
+    if(!is.null(pars_max)) {
+      pars_max[which(is.infinite(pars_max))] <- 1e100
+    }
   }
 
   if (is.null(x0) || any(is.na(x0))) {
@@ -85,8 +87,8 @@ simode_fit <- function(equations, pars, time, obs,
     pars_max <- pars_max[setdiff(names(pars_max),names(x0_max))]
   }
 
-  min_time <- min(unlist(lapply(1:v,function(i) time[[i]][1])))
-  max_time <- max(unlist(lapply(1:v,function(i) time[[i]][length(time[[i]])])))
+  min_time <- min(unlist(lapply(1:d,function(i) time[[i]][1])))
+  max_time <- max(unlist(lapply(1:d,function(i) time[[i]][length(time[[i]])])))
 
   if(im_smoothing[1] == "kernel") {
     dt <- min(unlist(lapply(1:d,function(i) diff(time[[i]]))))/2
@@ -123,7 +125,7 @@ simode_fit <- function(equations, pars, time, obs,
      !pracma::isempty(setdiff(1:d,vars2update)) &&
      !is.null(im_fit_prev)) {
 
-    stopifnot(all(im_fit_prev$vars==vars.org),
+    stopifnot(all(im_fit_prev$vars==vars),
               all(im_fit_prev$pars==pars),
               im_fit_prev$N==N)
 
@@ -262,12 +264,44 @@ simode_fit <- function(equations, pars, time, obs,
   for(i in 1:d) {
     G_mat[(N*(i-1)+1):(N*i),] <- G[[i]]
   }
-  x0_mat <- matrix(x0,nrow=N,ncol=d,byrow=TRUE)
+  x0_mat <- matrix(x0,nrow=N,ncol=d,byrow=T)
   x_vec <- as.vector(matrix(Q-x0_mat,nrow=nrow(Q)*ncol(Q)))
 
   theta <- NULL
   tryCatch({
+    if(reg_alpha >= 0) {
+      nfolds <- 10
+      if(length(x_vec)<30) {
+        nfolds <- max(3,floor(length(x_vec)/3))
+      }
+      if(reg_pkg=='glmnet') {
+        reg_cv <- cv.glmnet(G_mat, x_vec, alpha=reg_alpha, nfolds=nfolds)
+        reg_mod <- glmnet(G_mat, x_vec, alpha=reg_alpha, intercept=F, lambda=reg_cv$lambda,
+                            lower.limits=pars_min,upper.limits=pars_max)
+        reg_coef  <- predict(reg_mod, type='coefficients', s=reg_cv$lambda.min)
+        theta <- reg_coef[2:(p+1)]
+      }
+      else {
+        reg_cv <- cv.ncvreg(G_mat, x_vec, alpha=reg_alpha, nfolds=nfolds, seed=123)
+        reg_mod <- ncvreg(G_mat, x_vec, alpha=reg_alpha, penalty='SCAD') #, max.iter=1e5)
+        reg_coef  <- predict(reg_mod, type='coefficients', lambda=reg_cv$lambda.min)
+        theta <- reg_coef[2:(p+1)]
+      }
+      # rloss <- reg_mod$loss[1:length(reg_mod$loss)]-reg_mod$loss[length(reg_mod$loss)]
+      # rloss <- rloss/rloss[1]
+      # min.ind <- which(rloss==rloss[rloss<1e-2][1])[1]
+      # lambda_min <- reg_mod$lambda[min.ind]
+      # print(c(min.ind,log(lambda_min)))
+      # plot(-log(reg_mod$lambda),rloss)
+      # print(lambda_min)
+      # reg_coef  <- predict(reg_mod, type='coefficients', lambda=lambda_min)
+      # theta <- reg_coef[2:(p+1)]
+      # plot(reg_cv)
+      # plot(reg_mod,xvar='lambda')
+    }
+    else {
       theta <- lsqlincon(G_mat, x_vec, lb=pars_min, ub=pars_max)
+    }
   },
   warning = function(w) { if(trace>2) print(w) },
   error = function(e)   { if(trace>1) print(e) }
@@ -278,7 +312,10 @@ simode_fit <- function(equations, pars, time, obs,
   }
 
   names(theta) <- pars
-  im_fit <- list(theta=theta, x0=x0, vars=vars.org, pars=pars, N=N,
+  # theta[names(pars_min)] <- pmax(theta[names(pars_min)],pars_min)
+  # theta[names(pars_max)] <- pmin(theta[names(pars_max)],pars_max)
+
+  im_fit <- list(theta=theta, x0=x0, vars=vars, pars=pars, N=N,
                  t=t, im_smooth=im_smooth, Z=Z, G=G, A=A, B=B)
 
   return (im_fit)

@@ -8,7 +8,7 @@
   x,
   which = NULL,
   pars_true = NULL,
-  legend = FALSE,
+  legend = F,
   cols = list(fit = "blue", true = "black"),
   ...
 )
